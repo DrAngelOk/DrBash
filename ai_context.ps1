@@ -200,7 +200,9 @@ function Invoke-Status {
         'config.json',
         'AI_CONTEXT.md',
         'AI_TASKS.md',
-        '_END_OF_SESSION_PROMPT.txt'
+        '_END_OF_SESSION_PROMPT.txt',
+        'sanitize_for_repo.ps1',
+        'sanitize_patterns.json'
     )
     Write-Host "-- Ключевые файлы --" -ForegroundColor Yellow
     foreach ($f in $keyFiles) {
@@ -239,7 +241,7 @@ function Invoke-Status {
                 Write-Host ("  url      : {0}" -f $cfg.repo_url) -ForegroundColor Cyan
                 Write-Host ("  raw_base : {0}" -f $cfg.raw_base) -ForegroundColor Cyan
                 if ($cfg.files) {
-                    Write-Host ("  files    : {0}" -f ($cfg.files -join ', ')) -ForegroundColor Cyan
+                    Write-Host ("  files    : {0}" -f $cfg.files.Count) -ForegroundColor Cyan
                 }
             }
             Write-Host ""
@@ -503,10 +505,12 @@ function Invoke-Save {
 
     Write-AiLog "[save] $file ($($content.Length) симв.)"
 }
+
 # =====================================================================
 #  КОМАНДА: repo-push
-#  Заливает файлы контекста в публичный GitHub-репозиторий.
-#  files в config.json — массив объектов {name, local}.
+#  FIX: JSON для gh api пишется во временный файл UTF-8 без BOM,
+#  передаётся через --input <file>. Без pipe — иначе PowerShell 5.1
+#  кодирует stdin в CP1251 и портит русские буквы в контенте.
 # =====================================================================
 function Invoke-RepoPush {
     Show-Header "ОБНОВЛЕНИЕ GITHUB-РЕПОЗИТОРИЯ"
@@ -536,7 +540,6 @@ function Invoke-RepoPush {
     foreach ($item in $cfg.files) {
         $localPath = $item.local
         if (-not $localPath) {
-            # фоллбэк на старое поведение
             $localPath = Join-Path $Root $item.name
         }
         if (-not (Test-Path $localPath)) {
@@ -596,9 +599,17 @@ function Invoke-RepoPush {
 
             Write-Host ("  → {0}" -f $name) -ForegroundColor Gray
 
-            $out = & {
-                $payloadJson | gh api -X PUT "repos/$owner/$repo/contents/$name" --input - 2>&1
-            } | Out-String
+            # FIX: не пишем JSON в stdin (PowerShell 5.1 кодирует его в CP1251).
+            # Вместо этого сохраняем в файл UTF-8 без BOM и передаём через --input <file>.
+            $tmpJson = [System.IO.Path]::GetTempFileName()
+            try {
+                [System.IO.File]::WriteAllText($tmpJson, $payloadJson, (New-Object System.Text.UTF8Encoding($false)))
+                $out = & {
+                    gh api -X PUT "repos/$owner/$repo/contents/$name" --input "$tmpJson" 2>&1
+                } | Out-String
+            } finally {
+                Remove-Item $tmpJson -Force -ErrorAction SilentlyContinue
+            }
 
             $rc = $LASTEXITCODE
             if ($rc -ne 0) {
@@ -622,7 +633,7 @@ function Invoke-RepoPush {
 
 # =====================================================================
 #  КОМАНДА: repo-pull
-#  Скачивает файлы из репозитория в локальную папку _repo\.
+#  FIX: аналогично repo-push — используем временный файл для --input.
 # =====================================================================
 function Invoke-RepoPull {
     Show-Header "СКАЧИВАНИЕ ИЗ РЕПОЗИТОРИЯ"
