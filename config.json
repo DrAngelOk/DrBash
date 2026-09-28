@@ -46,6 +46,10 @@
     {
       "name": "config.json",
       "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\config.json"
+    },
+    {
+      "name": "merge_project.ps1",
+      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\Win\\merge_project.ps1"
     }
   ]
 }
