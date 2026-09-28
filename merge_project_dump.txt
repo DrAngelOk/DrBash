@@ -4,12 +4,24 @@
 Root         : Z:\DOC\СЕРВЕРА\Scripts
 Script dir   : Z:\DOC\СЕРВЕРА\Scripts\Win
 Manifest     : Z:\DOC\СЕРВЕРА\Scripts\Def\scriptpaths.list
-Generated    : 2026-09-26 23:06:24
+Generated    : 2026-09-28 21:56:18
 =====================================================================
  VERSION INFO (по дате самого свежего файла)
 =====================================================================
 Last change  : 2026-09-26 00:09:07
 Last file    : Conf\ConfSources.sh
+=====================================================================
+
+=====================================================================
+ WARNING: ФАЙЛЫ С ПОДОЗРИТЕЛЬНОЙ КОДИРОВКОЙ
+=====================================================================
+  - Conf\ConfManual.sh
+  - Def\esxi.list
+  - Def\server.list
+  - Def\users.cfg
+  - Func\05_Disks\51_funcZFS.sh
+  - Func\07_Mon\71_funcMon.sh
+  - Func\Scripts\funcCheck.sh
 =====================================================================
 
 =====================================================================
@@ -19,73 +31,73 @@ Last file    : Conf\ConfSources.sh
  ---  ------------------------------------------------------------  ------
 
 --- MANIFEST FILES (рекурсивно из scriptpaths.list) ---
-   1  Conf\ConfAll.sh                                                   93
-   2  Conf\ConfManual.sh                                               165
-   3  Conf\ConfPaths.sh                                                207
-   4  Conf\ConfServers.sh                                              269
-   5  Conf\ConfSets.sh                                                 389
-   6  Conf\ConfSources.sh                                              440
-   7  Def\dns.list                                                     494
-   8  Def\esxi.list                                                    530
-   9  Def\scriptpaths.list                                             589
-  10  Def\server.list                                                  606
-  11  Def\users.cfg                                                    701
-  12  Func\01_Config\11_funcNet.sh                                     730
-  13  Func\01_Config\12_funcUsers.sh                                   926
-  14  Func\01_Config\13_funcSsh.sh                                    1537
-  15  Func\01_Config\14_funcRsync.sh                                  1842
-  16  Func\01_Config\15_funcSslRsa.sh                                 2058
-  17  Func\01_Config\16_funcCertbot.sh                                2578
-  18  Func\01_Config\17_funcDocker.sh                                 2904
-  19  Func\01_Config\18_funcPhp.sh                                    3210
-  20  Func\01_Config\19_funcCyrillic.sh                               3655
-  21  Func\02_Backup\21_funcBackupPc.sh                               3848
-  22  Func\02_Backup\22_funcRestic.sh                                 3995
-  23  Func\02_Backup\23_funcBackrest.sh                               4399
-  24  Func\02_Backup\24_funcZrepl.sh                                  4611
-  25  Func\02_Backup\25_funcSyncMigrate.sh                            4733
-  26  Func\02_Backup\26_funcSyncArc.sh                                4980
-  27  Func\02_Backup\27_funcSyncRsync.sh                              5207
-  28  Func\02_Backup\28_funcSyncZFS.sh                                5368
-  29  Func\03_Servers\31_funcWeb.sh                                   5604
-  30  Func\03_Servers\32_funcSql.sh                                   5957
-  31  Func\03_Servers\33_funcOpenVpn.sh                               6274
-  32  Func\03_Servers\35_funcMemcached.sh                             6422
-  33  Func\03_Servers\36_funcSamba.sh                                 6628
-  34  Func\03_Servers\37_funcNfs.sh                                   6923
-  35  Func\03_Servers\38_funcNextcloud.sh                             7345
-  36  Func\03_Servers\39_funcDns.sh                                   7564
-  37  Func\04_FW\41_funcFirewall.sh                                   7827
-  38  Func\04_FW\42_funcFirewall2.sh                                  8047
-  39  Func\04_FW\44_funcSeLinux.sh                                    8384
-  40  Func\05_Disks\51_funcZFS.sh                                     8634
-  41  Func\05_Disks\52_funcZpool.sh                                   9218
-  42  Func\05_Disks\53_funcGpart.sh                                   9693
-  43  Func\05_Disks\54_funcFiles.sh                                   9963
-  44  Func\05_Disks\58_funcDiskClone.sh                              10294
-  45  Func\06_Logs\61_funcLogs.sh                                    10393
-  46  Func\06_Logs\62_funcTelegram.sh                                10773
-  47  Func\06_Logs\66_funcJournalctl.sh                              10914
-  48  Func\07_Mon\71_funcMon.sh                                      11122
-  49  Func\07_Mon\72_funcMonAtop.sh                                  11186
-  50  Func\07_Mon\73_funcMonMytop.sh                                 11287
-  51  Func\07_Mon\74_funcMonApache.sh                                11386
-  52  Func\07_Mon\75_funcMonApachetop.sh                             11590
-  53  Func\07_Mon\76_funcMonGoaccess.sh                              11682
-  54  Func\07_Mon\77_funcMonIotop.sh                                 11774
-  55  Func\07_Mon\78_funcMonNet.sh                                   11845
-  56  Func\07_Mon\79_funcMonIftop.sh                                 11963
-  57  Func\08_VM\81_funcEsxi.sh                                      12053
-  58  Func\08_VM\82_funcVmTools.sh                                   12710
-  59  Func\09_System\91_funcPreInstall.sh                            13050
-  60  Func\09_System\92_funcSystem.sh                                13322
-  61  Func\09_System\93_funcInstall.sh                               13615
-  62  Func\09_System\99_funcUpdate.sh                                13943
-  63  Func\10_Sites\101_funcWordPress.sh                             14529
-  64  Func\10_Sites\102_funcSiteMonit.sh                             15079
-  65  Func\Menu\funcMenu.sh                                          15233
-  66  Func\Scripts\funcCheck.sh                                      15619
-  67  Func\Scripts\funcUtil.sh                                       15678
+   1  Conf\ConfAll.sh                                                    1
+   2  Conf\ConfManual.sh                                                73
+   3  Conf\ConfPaths.sh                                                116
+   4  Conf\ConfServers.sh                                              178
+   5  Conf\ConfSets.sh                                                 298
+   6  Conf\ConfSources.sh                                              349
+   7  Def\dns.list                                                     403
+   8  Def\esxi.list                                                    439
+   9  Def\scriptpaths.list                                             499
+  10  Def\server.list                                                  516
+  11  Def\users.cfg                                                    612
+  12  Func\01_Config\11_funcNet.sh                                     642
+  13  Func\01_Config\12_funcUsers.sh                                   838
+  14  Func\01_Config\13_funcSsh.sh                                    1449
+  15  Func\01_Config\14_funcRsync.sh                                  1754
+  16  Func\01_Config\15_funcSslRsa.sh                                 1970
+  17  Func\01_Config\16_funcCertbot.sh                                2490
+  18  Func\01_Config\17_funcDocker.sh                                 2816
+  19  Func\01_Config\18_funcPhp.sh                                    3122
+  20  Func\01_Config\19_funcCyrillic.sh                               3567
+  21  Func\02_Backup\21_funcBackupPc.sh                               3760
+  22  Func\02_Backup\22_funcRestic.sh                                 3907
+  23  Func\02_Backup\23_funcBackrest.sh                               4311
+  24  Func\02_Backup\24_funcZrepl.sh                                  4523
+  25  Func\02_Backup\25_funcSyncMigrate.sh                            4645
+  26  Func\02_Backup\26_funcSyncArc.sh                                4892
+  27  Func\02_Backup\27_funcSyncRsync.sh                              5119
+  28  Func\02_Backup\28_funcSyncZFS.sh                                5280
+  29  Func\03_Servers\31_funcWeb.sh                                   5516
+  30  Func\03_Servers\32_funcSql.sh                                   5869
+  31  Func\03_Servers\33_funcOpenVpn.sh                               6186
+  32  Func\03_Servers\35_funcMemcached.sh                             6334
+  33  Func\03_Servers\36_funcSamba.sh                                 6540
+  34  Func\03_Servers\37_funcNfs.sh                                   6835
+  35  Func\03_Servers\38_funcNextcloud.sh                             7257
+  36  Func\03_Servers\39_funcDns.sh                                   7476
+  37  Func\04_FW\41_funcFirewall.sh                                   7739
+  38  Func\04_FW\42_funcFirewall2.sh                                  7959
+  39  Func\04_FW\44_funcSeLinux.sh                                    8296
+  40  Func\05_Disks\51_funcZFS.sh                                     8546
+  41  Func\05_Disks\52_funcZpool.sh                                   9131
+  42  Func\05_Disks\53_funcGpart.sh                                   9606
+  43  Func\05_Disks\54_funcFiles.sh                                   9876
+  44  Func\05_Disks\58_funcDiskClone.sh                              10207
+  45  Func\06_Logs\61_funcLogs.sh                                    10306
+  46  Func\06_Logs\62_funcTelegram.sh                                10686
+  47  Func\06_Logs\66_funcJournalctl.sh                              10827
+  48  Func\07_Mon\71_funcMon.sh                                      11035
+  49  Func\07_Mon\72_funcMonAtop.sh                                  11100
+  50  Func\07_Mon\73_funcMonMytop.sh                                 11201
+  51  Func\07_Mon\74_funcMonApache.sh                                11300
+  52  Func\07_Mon\75_funcMonApachetop.sh                             11504
+  53  Func\07_Mon\76_funcMonGoaccess.sh                              11596
+  54  Func\07_Mon\77_funcMonIotop.sh                                 11688
+  55  Func\07_Mon\78_funcMonNet.sh                                   11759
+  56  Func\07_Mon\79_funcMonIftop.sh                                 11877
+  57  Func\08_VM\81_funcEsxi.sh                                      11967
+  58  Func\08_VM\82_funcVmTools.sh                                   12624
+  59  Func\09_System\91_funcPreInstall.sh                            12964
+  60  Func\09_System\92_funcSystem.sh                                13236
+  61  Func\09_System\93_funcInstall.sh                               13529
+  62  Func\09_System\99_funcUpdate.sh                                13857
+  63  Func\10_Sites\101_funcWordPress.sh                             14443
+  64  Func\10_Sites\102_funcSiteMonit.sh                             14993
+  65  Func\Menu\funcMenu.sh                                          15147
+  66  Func\Scripts\funcCheck.sh                                      15533
+  67  Func\Scripts\funcUtil.sh                                       15593
 
 =====================================================================
 
@@ -168,6 +180,7 @@ source_required "${DirScriptsConf}/ConfSources.sh" critical
  MODIFIED   : 2026-09-25 22:58:20
 =====================================================================
 --- FILE CONTENT ---
+<<< WARNING: подозрительная кодировка файла >>>
 #!/usr/bin/env bash
 
 # =====================================================================
@@ -533,6 +546,7 @@ tpark48.ru
  MODIFIED   : 2026-09-22 23:13:57
 =====================================================================
 --- FILE CONTENT ---
+<<< WARNING: подозрительная кодировка файла >>>
 # =====================================================================
 # ����������� �������� ����������� �������������� ESXi (INI-������)
 # =====================================================================
@@ -609,6 +623,7 @@ Test
  MODIFIED   : 2026-09-22 15:25:46
 =====================================================================
 --- FILE CONTENT ---
+<<< WARNING: подозрительная кодировка файла >>>
 # =====================================================================
 # ����������� �������� �������������� ��� (������������ Enterprise-������)
 # =====================================================================
@@ -704,6 +719,7 @@ mounts    = NONE
  MODIFIED   : 2026-09-20 23:56:21
 =====================================================================
 --- FILE CONTENT ---
+<<< WARNING: подозрительная кодировка файла >>>
 # =====================================================================
 # ������ ������������� ��� ��������� ��������������� �������
 # ��������� ������: �����,������,������
@@ -8633,6 +8649,7 @@ MenuRegister "4.4.6"   "Собрать и скомпилировать pp-пак
  MODIFIED   : 2026-09-18 21:25:01
 =====================================================================
 --- FILE CONTENT ---
+<<< WARNING: подозрительная кодировка файла >>>
 #!/usr/bin/env bash
 
 # =====================================================================
@@ -11121,6 +11138,7 @@ MenuRegister "6.6.5"   "Таргетированный аудит по PID, UID 
  MODIFIED   : 2026-09-21 21:03:10
 =====================================================================
 --- FILE CONTENT ---
+<<< WARNING: подозрительная кодировка файла >>>
 #!/usr/bin/env bash
 
 # =====================================================================
@@ -15618,6 +15636,7 @@ function menuExecuteCLI
  MODIFIED   : 2026-09-26 00:03:43
 =====================================================================
 --- FILE CONTENT ---
+<<< WARNING: подозрительная кодировка файла >>>
 #!/usr/bin/env bash
 
 # =====================================================================
