@@ -361,10 +361,49 @@ function Invoke-Zip {
 
 # =====================================================================
 #  КОМАНДА: down
+#  Распаковывает ответ ИИ из буфера в файлы.
+#  Работает с форматом:
+#    === START OF PACKAGE ===
+#    === BEGIN FILE: <путь> ===
+#    <содержимое>
+#    === END FILE: <путь> ===
+#    ...
+#    === END OF PACKAGE ===
+#  Маркеры берутся из config.json (секция package).
+#  Проверяется path traversal — файл должен быть внутри $Root.
 # =====================================================================
 function Invoke-Down {
     Show-Header "РАСПАКОВКА ПАКЕТА ИЗ БУФЕРА"
 
+    # --- 1. Читаем маркеры из config.json ---
+    $cfg = $null
+    try {
+        $cfg = Get-Config -RootPath $Root
+    } catch {
+        Write-Host "[ERROR] Не удалось прочитать config.json: $($_.Exception.Message)" -ForegroundColor Red
+        return
+    }
+
+    $pkg = $cfg.package
+    if (-not $pkg) {
+        Write-Host "[ERROR] В config.json нет секции 'package'." -ForegroundColor Red
+        return
+    }
+
+    $startMarker = $pkg.start_marker
+    $beginMarker = $pkg.begin_file_marker
+    $endFileMarker = $pkg.end_file_marker
+    $endMarker = $pkg.end_marker
+
+    if ([string]::IsNullOrWhiteSpace($startMarker) -or
+        [string]::IsNullOrWhiteSpace($beginMarker) -or
+        [string]::IsNullOrWhiteSpace($endFileMarker) -or
+        [string]::IsNullOrWhiteSpace($endMarker)) {
+        Write-Host "[ERROR] В config.json секция 'package' неполная." -ForegroundColor Red
+        return
+    }
+
+    # --- 2. Читаем буфер ---
     try {
         $text = Get-Clipboard -Raw
     } catch {
@@ -381,30 +420,46 @@ function Invoke-Down {
 
     Write-Host "[INFO] Прочитано из буфера: $($text.Length) символов" -ForegroundColor Cyan
 
-    $endMarker = "=== END OF PACKAGE ==="
-    if ($text -notmatch [regex]::Escape($endMarker)) {
-        Write-Host "[WARN] В буфере НЕ найден маркер '$endMarker'." -ForegroundColor Yellow
-        Write-Host "[WARN] Возможно, скопировали не весь ответ ИИ." -ForegroundColor Yellow
+    # --- 3. Проверяем START и END маркеры ---
+    $hasStart = $text.Contains($startMarker)
+    $hasEnd = $text.Contains($endMarker)
+
+    if (-not $hasStart) {
+        Write-Host "[WARN] Не найден маркер '$startMarker'." -ForegroundColor Yellow
+    } else {
+        Write-Host "[OK] Маркер START найден." -ForegroundColor Green
+    }
+
+    if (-not $hasEnd) {
+        Write-Host "[WARN] Не найден маркер '$endMarker'." -ForegroundColor Yellow
+        Write-Host "[WARN] Возможно, пакет обрезан." -ForegroundColor Yellow
+    } else {
+        Write-Host "[OK] Маркер END найден." -ForegroundColor Green
+    }
+
+    if (-not $hasStart -or -not $hasEnd) {
         Write-Host ""
         Write-Host "Продолжить распаковку? (y/N): " -ForegroundColor Yellow -NoNewline
         $ans = Read-Host
         if ($ans -ne 'y' -and $ans -ne 'Y') {
             Write-Host "[CANCEL] Отменено пользователем." -ForegroundColor DarkYellow
-            Write-AiLog "[down] CANCEL: маркер не найден"
+            Write-AiLog "[down] CANCEL: маркеры не найдены"
             return
         }
-    } else {
-        Write-Host "[OK] Маркер конца пакета найден." -ForegroundColor Green
     }
 
-    $pattern = '(?ms)^===\s*FILE:\s*(?<path>.+?)\s*===\s*\r?\n```[^\r\n]*\r?\n(?<body>.*?)\r?\n```'
+    # --- 4. Разбираем блоки BEGIN FILE ... END FILE ---
+    # Регулярка: строка === BEGIN FILE: <путь> ===, затем тело до строки
+    # === END FILE: <путь> ===. Тело может содержать ЛЮБЫЕ символы,
+    # включая ``` и другие маркеры (кроме точной строки END FILE с тем же путём).
+    $pattern = '(?ms)^' + [regex]::Escape($beginMarker) + '\s*(?<path>.+?)\s*===\s*\r?\n' +
+               '(?<body>.*?)\r?\n' + [regex]::Escape($endFileMarker) + '\s*\k<path>\s*==='
 
     $matches = [regex]::Matches($text, $pattern)
 
     if ($matches.Count -eq 0) {
-        Write-Host "[WARN] Не найдено ни одного блока === FILE: ... ===" -ForegroundColor Yellow
-        Write-Host "[HINT] Возможно, при копировании из чата потерялись обратные кавычки." -ForegroundColor Yellow
-        Write-Host "[HINT] Сохраните файлы вручную через Notepad++ (Ctrl+A, вставить, Ctrl+S)." -ForegroundColor Yellow
+        Write-Host "[WARN] Не найдено ни одного блока BEGIN FILE ... END FILE." -ForegroundColor Yellow
+        Write-Host "[HINT] Проверьте формат пакета и config.json." -ForegroundColor DarkGray
         Write-AiLog "[down] WARN: 0 блоков"
         return
     }
@@ -412,41 +467,73 @@ function Invoke-Down {
     Write-Host "[INFO] Найдено блоков: $($matches.Count)" -ForegroundColor Cyan
     Write-Host ""
 
+    # --- 5. Обрабатываем каждый блок ---
+    $rootFull = (Resolve-Path -LiteralPath $Root).Path
+    $rootPrefix = $rootFull + [System.IO.Path]::DirectorySeparatorChar
+
     $saved = 0
     $failed = 0
-    $diffs = @()
+    $skipped = 0
+    $summaries = @()
 
     foreach ($m in $matches) {
         $rawPath = $m.Groups['path'].Value.Trim()
         $body    = $m.Groups['body'].Value
 
+        # Добавляем обратный слэш в начало, если путь относительный
         if (-not [System.IO.Path]::IsPathRooted($rawPath)) {
             $rawPath = Join-Path $Root $rawPath
         }
 
-        if ($DryRun) {
-            Write-Host "[DRY] $rawPath ($($body.Length) симв.)" -ForegroundColor DarkGray
+        # Нормализуем путь
+        try {
+            $fullPath = [System.IO.Path]::GetFullPath($rawPath)
+        } catch {
+            Write-Host "[ERR] Неверный путь '$rawPath'" -ForegroundColor Red
+            $failed++
             continue
         }
 
-        $diffSummary = Get-FileDiffSummary -Path $rawPath -NewContent $body
+        # Проверка path traversal
+        if (-not $fullPath.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            Write-Host "[ERR] ПУТЬ ВНЕ КОРНЯ — пропуск: $fullPath" -ForegroundColor Red
+            $skipped++
+            continue
+        }
+
+        if ($DryRun) {
+            Write-Host "[DRY] $fullPath ($($body.Length) симв.)" -ForegroundColor DarkGray
+            continue
+        }
+
+        $diffSummary = Get-FileDiffSummary -Path $fullPath -NewContent $body
 
         try {
-            Write-FileUtf8 -Path $rawPath -Content $body
-            Write-Host "[OK]  $rawPath" -ForegroundColor Green
+            Write-FileUtf8 -Path $fullPath -Content $body
+            Write-Host "[OK]  $fullPath" -ForegroundColor Green
             Write-Host "      $diffSummary" -ForegroundColor DarkGray
-            $diffs += "$rawPath : $diffSummary"
+            $summaries += "  - $fullPath : $diffSummary"
             $saved++
         } catch {
-            Write-Host "[ERR] $rawPath — $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "[ERR] $fullPath — $($_.Exception.Message)" -ForegroundColor Red
             $failed++
         }
     }
 
+    # --- 6. Итоговая сводка ---
     if (-not $DryRun) {
         Write-Host ""
-        Write-Host "[DONE] Сохранено: $saved, ошибок: $failed" -ForegroundColor Cyan
-        Write-AiLog "[down] saved=$saved failed=$failed"
+        Write-Host "[DONE] Обновлено: $saved, ошибок: $failed, пропущено: $skipped" -ForegroundColor Cyan
+
+        if ($summaries.Count -gt 0) {
+            Write-Host ""
+            Write-Host "Сводка по файлам:" -ForegroundColor Yellow
+            foreach ($s in $summaries) {
+                Write-Host $s -ForegroundColor DarkGray
+            }
+        }
+
+        Write-AiLog "[down] saved=$saved failed=$failed skipped=$skipped"
     } else {
         Write-Host ""
         Write-Host "[DRY] Реального сохранения не было." -ForegroundColor Yellow
