@@ -1,4 +1,4 @@
-﻿{
+{
   "repo_owner": "DrAngelOk",
   "repo_name": "DrBash",
   "repo_url": "https://github.com/DrAngelOk/DrBash",
@@ -13,43 +13,47 @@
   "files": [
     {
       "name": "AI_START.md",
-      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\AI_START.md"
+      "local": "Z:/DOC/СЕРВЕРА/Scripts/AI/AI_START.md"
+    },
+    {
+      "name": "AI_MAP.md",
+      "local": "Z:/DOC/СЕРВЕРА/Scripts/AI/AI_MAP.md"
     },
     {
       "name": "AI_CONTEXT.md",
-      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\AI_CONTEXT.md"
+      "local": "Z:/DOC/СЕРВЕРА/Scripts/AI/AI_CONTEXT.md"
     },
     {
       "name": "AI_TASKS.md",
-      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\AI_TASKS.md"
+      "local": "Z:/DOC/СЕРВЕРА/Scripts/AI/AI_TASKS.md"
     },
     {
       "name": "_END_OF_SESSION_PROMPT.txt",
-      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\_END_OF_SESSION_PROMPT.txt"
+      "local": "Z:/DOC/СЕРВЕРА/Scripts/AI/_END_OF_SESSION_PROMPT.txt"
     },
     {
       "name": "ai_context.ps1",
-      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\ai_context.ps1"
+      "local": "Z:/DOC/СЕРВЕРА/Scripts/AI/ai_context.ps1"
     },
     {
       "name": "merge_project_dump.txt",
-      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\_repo\\merge_project_dump.txt"
+      "local": "Z:/DOC/СЕРВЕРА/Scripts/AI/_repo/merge_project_dump.txt"
     },
     {
       "name": "sanitize_for_repo.ps1",
-      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\sanitize_for_repo.ps1"
+      "local": "Z:/DOC/СЕРВЕРА/Scripts/AI/sanitize_for_repo.ps1"
     },
     {
       "name": "sanitize_patterns.json",
-      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\sanitize_patterns.json"
+      "local": "Z:/DOC/СЕРВЕРА/Scripts/AI/sanitize_patterns.json"
     },
     {
       "name": "config.json",
-      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\config.json"
+      "local": "Z:/DOC/СЕРВЕРА/Scripts/AI/config.json"
     },
     {
       "name": "merge_project.ps1",
-      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\Win\\merge_project.ps1"
+      "local": "Z:/DOC/СЕРВЕРА/Scripts/Win/merge_project.ps1"
     }
   ]
 }
