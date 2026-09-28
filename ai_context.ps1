@@ -371,6 +371,9 @@ function Invoke-Zip {
 #    === END OF PACKAGE ===
 #  Маркеры берутся из config.json (секция package).
 #  Проверяется path traversal — файл должен быть внутри $Root.
+#  FIX: если в пути потерян слэш перед именем файла (например,
+#       'AI_test.md' вместо 'AI\_test.md') — путь восстанавливается
+#       автоматически.
 # =====================================================================
 function Invoke-Down {
     Show-Header "РАСПАКОВКА ПАКЕТА ИЗ БУФЕРА"
@@ -390,10 +393,10 @@ function Invoke-Down {
         return
     }
 
-    $startMarker = $pkg.start_marker
-    $beginMarker = $pkg.begin_file_marker
+    $startMarker   = $pkg.start_marker
+    $beginMarker   = $pkg.begin_file_marker
     $endFileMarker = $pkg.end_file_marker
-    $endMarker = $pkg.end_marker
+    $endMarker     = $pkg.end_marker
 
     if ([string]::IsNullOrWhiteSpace($startMarker) -or
         [string]::IsNullOrWhiteSpace($beginMarker) -or
@@ -422,7 +425,7 @@ function Invoke-Down {
 
     # --- 3. Проверяем START и END маркеры ---
     $hasStart = $text.Contains($startMarker)
-    $hasEnd = $text.Contains($endMarker)
+    $hasEnd   = $text.Contains($endMarker)
 
     if (-not $hasStart) {
         Write-Host "[WARN] Не найден маркер '$startMarker'." -ForegroundColor Yellow
@@ -449,9 +452,7 @@ function Invoke-Down {
     }
 
     # --- 4. Разбираем блоки BEGIN FILE ... END FILE ---
-    # Регулярка: строка === BEGIN FILE: <путь> ===, затем тело до строки
-    # === END FILE: <путь> ===. Тело может содержать ЛЮБЫЕ символы,
-    # включая ``` и другие маркеры (кроме точной строки END FILE с тем же путём).
+    # Тело — до строки END FILE с тем же путём.
     $pattern = '(?ms)^' + [regex]::Escape($beginMarker) + '\s*(?<path>.+?)\s*===\s*\r?\n' +
                '(?<body>.*?)\r?\n' + [regex]::Escape($endFileMarker) + '\s*\k<path>\s*==='
 
@@ -468,11 +469,11 @@ function Invoke-Down {
     Write-Host ""
 
     # --- 5. Обрабатываем каждый блок ---
-    $rootFull = (Resolve-Path -LiteralPath $Root).Path
+    $rootFull   = (Resolve-Path -LiteralPath $Root).Path
     $rootPrefix = $rootFull + [System.IO.Path]::DirectorySeparatorChar
 
-    $saved = 0
-    $failed = 0
+    $saved   = 0
+    $failed  = 0
     $skipped = 0
     $summaries = @()
 
@@ -480,21 +481,31 @@ function Invoke-Down {
         $rawPath = $m.Groups['path'].Value.Trim()
         $body    = $m.Groups['body'].Value
 
-        # Добавляем обратный слэш в начало, если путь относительный
-        if (-not [System.IO.Path]::IsPathRooted($rawPath)) {
-            $rawPath = Join-Path $Root $rawPath
+        # --- 5.1. Нормализация пути ---
+        $candidatePath = $rawPath
+        if (-not [System.IO.Path]::IsPathRooted($candidatePath)) {
+            $candidatePath = Join-Path $Root $candidatePath
         }
 
-        # Нормализуем путь
+        # --- 5.2. Проверяем и, если надо, восстанавливаем путь ---
+        $recovered = $false
         try {
-            $fullPath = [System.IO.Path]::GetFullPath($rawPath)
+            $fullPath = [System.IO.Path]::GetFullPath($candidatePath)
         } catch {
-            Write-Host "[ERR] Неверный путь '$rawPath'" -ForegroundColor Red
-            $failed++
-            continue
+            $fullPath = $candidatePath
         }
 
-        # Проверка path traversal
+        if (-not $fullPath.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            # Путь вне $Root — пытаемся восстановить.
+            $recoveredPath = Repair-PathForRoot -BrokenPath $candidatePath -RootPath $rootFull
+            if ($recoveredPath -and $recoveredPath.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+                Write-Host "[FIX] Путь восстановлен: $rawPath → $recoveredPath" -ForegroundColor Yellow
+                $fullPath = $recoveredPath
+                $recovered = $true
+            }
+        }
+
+        # --- 5.3. Финальная проверка ---
         if (-not $fullPath.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
             Write-Host "[ERR] ПУТЬ ВНЕ КОРНЯ — пропуск: $fullPath" -ForegroundColor Red
             $skipped++
@@ -541,6 +552,87 @@ function Invoke-Down {
     }
 }
 
+# =====================================================================
+#  ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: Repair-PathForRoot
+#  Пытается восстановить путь, если потерян разделитель (например,
+#  'AI_test.md' вместо 'AI\_test.md'). Идея: взять имя файла и
+#  родительскую папку, склеить через \, проверить что получилось
+#  внутри $RootPath.
+# =====================================================================
+function Repair-PathForRoot {
+    param(
+        [string]$BrokenPath,
+        [string]$RootPath
+    )
+
+    # Приводим к одному разделителю
+    $norm = $BrokenPath -replace '/', '\'
+
+    # Имя файла — всё после последнего '\'
+    $leaf = Split-Path -Leaf $norm
+    $dir  = Split-Path -Parent $norm
+
+    # Если родительская папка сама вне Root — ищем её внутри Root.
+    $rootFull   = (Resolve-Path -LiteralPath $RootPath).Path
+    $rootPrefix = $rootFull + '\'
+
+    # Вариант 1: дирректория $dir уже внутри $Root — просто склеиваем.
+    if ($dir -and ([System.IO.Path]::GetFullPath($dir)).StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        return (Join-Path $dir $leaf)
+    }
+
+    # Вариант 2: пробуем вставить разделитель перед символом '_' в листе.
+    # Ищем '_' как точку разделения: например, 'AI_test.md' → 'AI\_test.md'.
+    if ($leaf -match '^(?<parent>.+?)(?<sep>_)(?<rest>.+)$') {
+        $parentPart = $Matches['parent']
+        $sepPart    = $Matches['sep']
+        $restPart   = $Matches['rest']
+
+        # Пробуем разные комбинации: $dir + $parentPart как подпапка; или
+        # $dir с уже включённым $parentPart в конце — типичный случай.
+        $candidates = @()
+
+        # a) $dir — уже содержит $parentPart (например, ...\AI)
+        if ($dir) {
+            $candidates += (Join-Path $dir ($sepPart + $restPart))
+        }
+
+        # b) $dir + $parentPart + $sepPart + $restPart
+        if ($dir) {
+            $candidates += (Join-Path (Join-Path $dir $parentPart) ($sepPart + $restPart))
+        }
+
+        foreach ($cand in $candidates) {
+            try {
+                $full = [System.IO.Path]::GetFullPath($cand)
+                if ($full.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+                    return $full
+                }
+            } catch { }
+        }
+    }
+
+    # Вариант 3: сломан путь в виде 'Z:\...\AI_test.md', а надо
+    # 'Z:\...\AI\_test.md'. Ищем последний компонент, который
+    # заканчивается на имя папки внутри Root.
+    if ($dir) {
+        $parts = $dir -split '\\'
+        for ($i = $parts.Length - 1; $i -ge 1; $i--) {
+            $prefixCandidate = ($parts[0..($i-1)] -join '\')
+            $folderCandidate = $parts[$i]
+            $tryPath = Join-Path $prefixCandidate $folderCandidate
+            if (Test-Path $tryPath -PathType Container) {
+                # Проверим: если эта папка внутри Root — склеиваем.
+                $full = [System.IO.Path]::GetFullPath($tryPath)
+                if ($full.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+                    return (Join-Path $full $leaf)
+                }
+            }
+        }
+    }
+
+    return $null
+}
 # =====================================================================
 #  КОМАНДА: repo-push
 #  JSON для gh api пишется во временный файл UTF-8 без BOM.
