@@ -1,0 +1,51 @@
+﻿{
+  "repo_owner": "DrAngelOk",
+  "repo_name": "DrBash",
+  "repo_url": "https://github.com/DrAngelOk/DrBash",
+  "raw_base": "https://raw.githubusercontent.com/DrAngelOk/DrBash/main/",
+  "branch": "main",
+  "package": {
+    "start_marker": "%%%START-OF-PACKAGE%%%",
+    "begin_file_marker": "%%%BEGIN-FILE%%%",
+    "end_file_marker": "%%%END-FILE%%%",
+    "end_marker": "%%%END-OF-PACKAGE%%%"
+  },
+  "files": [
+    {
+      "name": "AI_START.md",
+      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\AI_START.md"
+    },
+    {
+      "name": "AI_CONTEXT.md",
+      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\AI_CONTEXT.md"
+    },
+    {
+      "name": "AI_TASKS.md",
+      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\AI_TASKS.md"
+    },
+    {
+      "name": "_END_OF_SESSION_PROMPT.txt",
+      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\_END_OF_SESSION_PROMPT.txt"
+    },
+    {
+      "name": "ai_context.ps1",
+      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\ai_context.ps1"
+    },
+    {
+      "name": "merge_project_dump.txt",
+      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\_repo\\merge_project_dump.txt"
+    },
+    {
+      "name": "sanitize_for_repo.ps1",
+      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\sanitize_for_repo.ps1"
+    },
+    {
+      "name": "sanitize_patterns.json",
+      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\sanitize_patterns.json"
+    },
+    {
+      "name": "config.json",
+      "local": "Z:\\DOC\\СЕРВЕРА\\Scripts\\AI\\config.json"
+    }
+  ]
+}
