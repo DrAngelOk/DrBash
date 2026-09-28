@@ -363,7 +363,11 @@ function Invoke-Zip {
 #  КОМАНДА: down
 #  Распаковывает ответ ИИ из буфера в файлы.
 #  Маркеры пакета читаются из config.json (секция package).
-#  Формат: <begin_marker> <путь> \n <тело> \n <end_marker> <путь>
+#
+#  FIX (T-006): добавлена защита от сломанных пакетов:
+#    - проверка парности BEGIN-FILE и END-FILE во всём буфере;
+#    - отказ от блока, если внутри его тела встретился маркер
+#      BEGIN-FILE (верный признак обрезки).
 # =====================================================================
 function Invoke-Down {
     Show-Header "РАСПАКОВКА ПАКЕТА ИЗ БУФЕРА"
@@ -440,12 +444,29 @@ function Invoke-Down {
         }
     }
 
-    # --- 4. Разбираем блоки BEGIN-FILE ... END-FILE ---
-    # Маркеры читаются из config.json — БЕЗ хардкода.
-    # Регулярка:
-    #   ^<beginMarker>\s+(?<path>.+?)\s*$    — строка BEGIN с путём
-    #   (?<body>.*?)                          — тело
-    #   ^<endMarker>\s+\k<path>\s*$           — строка END с тем же путём
+    # --- 4. FIX (T-006): Проверка парности BEGIN и END во всём буфере ---
+    $beginCount = ([regex]::Matches($text, [regex]::Escape($beginMarker))).Count
+    $endCount   = ([regex]::Matches($text, [regex]::Escape($endFileMarker))).Count
+
+    Write-Host "[INFO] Маркеров BEGIN в буфере: $beginCount" -ForegroundColor DarkGray
+    Write-Host "[INFO] Маркеров END   в буфере: $endCount"   -ForegroundColor DarkGray
+
+    if ($beginCount -ne $endCount) {
+        Write-Host "[WARN] Количество BEGIN ($beginCount) и END ($endCount) не совпадает!" -ForegroundColor Yellow
+        Write-Host "[WARN] Пакет может быть неполным или сломанным." -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Продолжить распаковку? (y/N): " -ForegroundColor Yellow -NoNewline
+        $ans = Read-Host
+        if ($ans -ne 'y' -and $ans -ne 'Y') {
+            Write-Host "[CANCEL] Отменено пользователем." -ForegroundColor DarkYellow
+            Write-AiLog "[down] CANCEL: BEGIN/END не парные ($beginCount/$endCount)"
+            return
+        }
+    } else {
+        Write-Host "[OK] Количество BEGIN и END совпадает." -ForegroundColor Green
+    }
+
+    # --- 5. Разбираем блоки BEGIN-FILE ... END-FILE ---
     $escBegin = [regex]::Escape($beginMarker)
     $escEnd   = [regex]::Escape($endFileMarker)
 
@@ -464,26 +485,38 @@ function Invoke-Down {
     Write-Host "[INFO] Найдено блоков: $($matches.Count)" -ForegroundColor Cyan
     Write-Host ""
 
-    # --- 5. Обрабатываем каждый блок ---
+    # --- 6. Обрабатываем каждый блок ---
     $rootFull   = (Resolve-Path -LiteralPath $Root).Path
     $rootPrefix = $rootFull + [System.IO.Path]::DirectorySeparatorChar
 
     $saved   = 0
     $failed  = 0
     $skipped = 0
+    $broken  = 0
     $summaries = @()
 
     foreach ($m in $matches) {
         $rawPath = $m.Groups['path'].Value.Trim()
         $body    = $m.Groups['body'].Value
 
-        # --- 5.1. Нормализация пути ---
+        # --- 6.1. FIX (T-006): Проверка тела на наличие маркера BEGIN-FILE ---
+        # Если внутри тела встретился BEGIN-FILE (с другим путём) — это
+        # верный признак обрезки файла или сломанного пакета.
+        if ($body -match ('(?m)^' + $escBegin + '[ \t]')) {
+            Write-Host "[BROKEN] В теле файла найден маркер BEGIN-FILE — пропуск:" -ForegroundColor Red
+            Write-Host "         $rawPath" -ForegroundColor Red
+            Write-Host "         Файл мог быть обрезан. Проверьте пакет." -ForegroundColor DarkYellow
+            $broken++
+            continue
+        }
+
+        # --- 6.2. Нормализация пути ---
         $candidatePath = $rawPath
         if (-not [System.IO.Path]::IsPathRooted($candidatePath)) {
             $candidatePath = Join-Path $Root $candidatePath
         }
 
-        # --- 5.2. Проверка и восстановление пути ---
+        # --- 6.3. Проверка и восстановление пути ---
         try {
             $fullPath = [System.IO.Path]::GetFullPath($candidatePath)
         } catch {
@@ -498,7 +531,7 @@ function Invoke-Down {
             }
         }
 
-        # --- 5.3. Финальная проверка ---
+        # --- 6.4. Финальная проверка пути ---
         if (-not $fullPath.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
             Write-Host "[ERR] ПУТЬ ВНЕ КОРНЯ — пропуск: $fullPath" -ForegroundColor Red
             $skipped++
@@ -524,10 +557,10 @@ function Invoke-Down {
         }
     }
 
-    # --- 6. Итоговая сводка ---
+    # --- 7. Итоговая сводка ---
     if (-not $DryRun) {
         Write-Host ""
-        Write-Host "[DONE] Обновлено: $saved, ошибок: $failed, пропущено: $skipped" -ForegroundColor Cyan
+        Write-Host "[DONE] Обновлено: $saved, ошибок: $failed, пропущено: $skipped, сломано: $broken" -ForegroundColor Cyan
 
         if ($summaries.Count -gt 0) {
             Write-Host ""
@@ -537,7 +570,7 @@ function Invoke-Down {
             }
         }
 
-        Write-AiLog "[down] saved=$saved failed=$failed skipped=$skipped"
+        Write-AiLog "[down] saved=$saved failed=$failed skipped=$skipped broken=$broken"
     } else {
         Write-Host ""
         Write-Host "[DRY] Реального сохранения не было." -ForegroundColor Yellow
