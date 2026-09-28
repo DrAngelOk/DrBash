@@ -6,48 +6,39 @@
     Единый инструмент для работы с папкой Z:\DOC\СЕРВЕРА\Scripts\AI.
     Команды:
       status         — состояние AI-папки.
-      pack           — собрать zip-пакет для новой сессии.
-      unpack         — распаковать пакет из буфера в файлы.
-      save           — сохранить текущий чат в Markdown.
+      zip            — собрать zip-пакет для новой сессии.
+      down           — распаковать пакет из буфера в файлы.
       repo-push      — залить файлы контекста в GitHub-репозиторий.
       repo-pull      — скачать файлы из GitHub-репозитория в _repo\.
-      session-close  — закрытие сессии: unpack + опционально repo-push.
+      session-close  — закрытие сессии: down + zip + repo-push.
       help           — справка.
 
 .PARAMETER Command
-    status | pack | unpack | save | repo-push | repo-pull | session-close | help
+    status | zip | down | repo-push | repo-pull | session-close | help
 
 .PARAMETER Root
     Корневая папка AI. По умолчанию Z:\DOC\СЕРВЕРА\Scripts\AI.
 
 .PARAMETER LastPatches
-    (pack) Сколько последних патчей включить. По умолчанию 30.
+    (zip) Сколько последних патчей включить. По умолчанию 30.
 
 .PARAMETER LastChats
-    (pack) Сколько последних резюме чатов включить. По умолчанию 5.
+    (zip) Сколько последних резюме чатов включить. По умолчанию 5.
 
 .PARAMETER DryRun
-    (unpack, repo-push) Показать, что будет сделано, без записи.
-
-.PARAMETER FromClipboard
-    (save) Форсировать чтение чата из буфера, не открывать Notepad.
-
-.PARAMETER SkipRepo
-    (session-close) Не запускать repo-push, только unpack.
+    (down, repo-push) Показать, что будет сделано, без записи.
 
 .PARAMETER NoLog
     Отключить запись в logs\ai_context.log.
 
 .EXAMPLE
     .\ai_context.ps1 status
-    .\ai_context.ps1 pack
-    .\ai_context.ps1 unpack
-    .\ai_context.ps1 unpack -DryRun
+    .\ai_context.ps1 zip
+    .\ai_context.ps1 down
+    .\ai_context.ps1 down -DryRun
     .\ai_context.ps1 session-close
-    .\ai_context.ps1 session-close -SkipRepo
     .\ai_context.ps1 repo-push
     .\ai_context.ps1 repo-pull
-    .\ai_context.ps1 save -FromClipboard
 
 .NOTES
     Требуется PowerShell 5.1+ или PowerShell 7+ (рекомендуется).
@@ -58,15 +49,13 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('pack','unpack','save','status','repo-push','repo-pull','session-close','help','')]
+    [ValidateSet('zip','down','status','repo-push','repo-pull','session-close','help','')]
     [string]$Command = '',
 
     [string]$Root        = "Z:\DOC\СЕРВЕРА\Scripts\AI",
     [int]   $LastPatches = 30,
     [int]   $LastChats   = 5,
     [switch]$DryRun,
-    [switch]$FromClipboard,
-    [switch]$SkipRepo,
     [switch]$NoLog
 )
 
@@ -300,13 +289,13 @@ function Invoke-Status {
         }
     }
     Write-Host ""
-    Write-Host "Подсказка: pack — собрать пакет | session-close — закрыть сессию" -ForegroundColor DarkGray
+    Write-Host "Подсказка: zip — собрать пакет | session-close — закрыть сессию" -ForegroundColor DarkGray
 }
 
 # =====================================================================
-#  КОМАНДА: pack
+#  КОМАНДА: zip
 # =====================================================================
-function Invoke-Pack {
+function Invoke-Zip {
     Show-Header "СБОРКА ПАКЕТА ДЛЯ НОВОЙ СЕССИИ"
 
     if (-not (Test-Path $Root)) {
@@ -367,26 +356,26 @@ function Invoke-Pack {
     Write-Host "[INFO] Размер: $([math]::Round((Get-Item $zip).Length/1KB,1)) КБ" -ForegroundColor Cyan
     Write-Host "[NEXT] Прикрепите этот zip первым сообщением в новую сессию." -ForegroundColor Yellow
 
-    Write-AiLog "[pack] $zip"
+    Write-AiLog "[zip] $zip"
 }
 
 # =====================================================================
-#  КОМАНДА: unpack
+#  КОМАНДА: down
 # =====================================================================
-function Invoke-Unpack {
+function Invoke-Down {
     Show-Header "РАСПАКОВКА ПАКЕТА ИЗ БУФЕРА"
 
     try {
         $text = Get-Clipboard -Raw
     } catch {
         Write-Host "[ERROR] Не удалось прочитать буфер: $($_.Exception.Message)" -ForegroundColor Red
-        Write-AiLog "[unpack] ERROR: буфер не читается"
+        Write-AiLog "[down] ERROR: буфер не читается"
         return
     }
 
     if ([string]::IsNullOrWhiteSpace($text)) {
         Write-Host "[ERROR] Буфер обмена пуст. Скопируйте ответ ИИ и повторите." -ForegroundColor Red
-        Write-AiLog "[unpack] ERROR: буфер пуст"
+        Write-AiLog "[down] ERROR: буфер пуст"
         return
     }
 
@@ -401,7 +390,7 @@ function Invoke-Unpack {
         $ans = Read-Host
         if ($ans -ne 'y' -and $ans -ne 'Y') {
             Write-Host "[CANCEL] Отменено пользователем." -ForegroundColor DarkYellow
-            Write-AiLog "[unpack] CANCEL: маркер не найден"
+            Write-AiLog "[down] CANCEL: маркер не найден"
             return
         }
     } else {
@@ -416,7 +405,7 @@ function Invoke-Unpack {
         Write-Host "[WARN] Не найдено ни одного блока === FILE: ... ===" -ForegroundColor Yellow
         Write-Host "[HINT] Возможно, при копировании из чата потерялись обратные кавычки." -ForegroundColor Yellow
         Write-Host "[HINT] Сохраните файлы вручную через Notepad++ (Ctrl+A, вставить, Ctrl+S)." -ForegroundColor Yellow
-        Write-AiLog "[unpack] WARN: 0 блоков"
+        Write-AiLog "[down] WARN: 0 блоков"
         return
     }
 
@@ -457,60 +446,17 @@ function Invoke-Unpack {
     if (-not $DryRun) {
         Write-Host ""
         Write-Host "[DONE] Сохранено: $saved, ошибок: $failed" -ForegroundColor Cyan
-        Write-AiLog "[unpack] saved=$saved failed=$failed"
+        Write-AiLog "[down] saved=$saved failed=$failed"
     } else {
         Write-Host ""
         Write-Host "[DRY] Реального сохранения не было." -ForegroundColor Yellow
-        Write-AiLog "[unpack] DRY-RUN, блоков=$($matches.Count)"
+        Write-AiLog "[down] DRY-RUN, блоков=$($matches.Count)"
     }
-}
-
-# =====================================================================
-#  КОМАНДА: save
-# =====================================================================
-function Invoke-Save {
-    Show-Header "СОХРАНЕНИЕ ЧАТА"
-
-    $outDir = Join-Path $Root 'chats'
-    Ensure-Dir $outDir
-
-    $content = $null
-
-    if ($FromClipboard) {
-        $content = Get-Clipboard -Raw
-        if ([string]::IsNullOrWhiteSpace($content)) {
-            Write-Host "[ERROR] Буфер обмена пуст." -ForegroundColor Red
-            return
-        }
-    } else {
-        $tmp = New-TemporaryFile
-        Write-Host "[INFO] Открываю Notepad. Вставьте чат (Ctrl+V), сохраните, закройте." -ForegroundColor Cyan
-        Start-Process -FilePath "notepad.exe" -ArgumentList $tmp.FullName -Wait
-        $content = Get-Content $tmp.FullName -Raw -ErrorAction SilentlyContinue
-        Remove-Item $tmp.FullName -Force -ErrorAction SilentlyContinue
-
-        if ([string]::IsNullOrWhiteSpace($content)) {
-            Write-Host "[ERROR] Файл пуст — нечего сохранять." -ForegroundColor Red
-            return
-        }
-    }
-
-    $stamp = Get-Date -Format "yyyy-MM-dd_HHmmss"
-    $file  = Join-Path $outDir "chat_$stamp.md"
-
-    Write-FileUtf8 -Path $file -Content $content
-
-    Write-Host "[OK] Сохранено: $file" -ForegroundColor Green
-    Write-Host "[INFO] Размер: $($content.Length) символов" -ForegroundColor Cyan
-
-    Write-AiLog "[save] $file ($($content.Length) симв.)"
 }
 
 # =====================================================================
 #  КОМАНДА: repo-push
-#  FIX: JSON для gh api пишется во временный файл UTF-8 без BOM,
-#  передаётся через --input <file>. Без pipe — иначе PowerShell 5.1
-#  кодирует stdin в CP1251 и портит русские буквы в контенте.
+#  JSON для gh api пишется во временный файл UTF-8 без BOM.
 # =====================================================================
 function Invoke-RepoPush {
     Show-Header "ОБНОВЛЕНИЕ GITHUB-РЕПОЗИТОРИЯ"
@@ -599,8 +545,7 @@ function Invoke-RepoPush {
 
             Write-Host ("  → {0}" -f $name) -ForegroundColor Gray
 
-            # FIX: не пишем JSON в stdin (PowerShell 5.1 кодирует его в CP1251).
-            # Вместо этого сохраняем в файл UTF-8 без BOM и передаём через --input <file>.
+            # JSON пишется во временный файл UTF-8 без BOM, чтобы не портить кодировку
             $tmpJson = [System.IO.Path]::GetTempFileName()
             try {
                 [System.IO.File]::WriteAllText($tmpJson, $payloadJson, (New-Object System.Text.UTF8Encoding($false)))
@@ -633,7 +578,6 @@ function Invoke-RepoPush {
 
 # =====================================================================
 #  КОМАНДА: repo-pull
-#  FIX: аналогично repo-push — используем временный файл для --input.
 # =====================================================================
 function Invoke-RepoPull {
     Show-Header "СКАЧИВАНИЕ ИЗ РЕПОЗИТОРИЯ"
@@ -699,22 +643,22 @@ function Invoke-RepoPull {
 
 # =====================================================================
 #  КОМАНДА: session-close
+#  Последовательность: down → zip → repo-push.
 # =====================================================================
 function Invoke-SessionClose {
     Show-Header "ЗАКРЫТИЕ СЕССИИ"
-    Write-Host "[INFO] Шаг 1: unpack (распаковка ответа ИИ из буфера)" -ForegroundColor Cyan
     Write-AiLog "[session-close] START"
 
-    Invoke-Unpack
+    Write-Host "[INFO] Шаг 1/3: down (распаковка ответа ИИ из буфера)" -ForegroundColor Cyan
+    Invoke-Down
 
-    if (-not $SkipRepo) {
-        Write-Host ""
-        Write-Host "[INFO] Шаг 2: repo-push (обновление GitHub-репозитория)" -ForegroundColor Cyan
-        Invoke-RepoPush
-    } else {
-        Write-Host ""
-        Write-Host "[INFO] Шаг 2: repo-push пропущен (-SkipRepo)." -ForegroundColor DarkGray
-    }
+    Write-Host ""
+    Write-Host "[INFO] Шаг 2/3: zip (сборка пакета для следующей сессии)" -ForegroundColor Cyan
+    Invoke-Zip
+
+    Write-Host ""
+    Write-Host "[INFO] Шаг 3/3: repo-push (обновление GitHub-репозитория)" -ForegroundColor Cyan
+    Invoke-RepoPush
 
     Write-Host ""
     Write-Host "[DONE] Сессия закрыта." -ForegroundColor Green
@@ -731,16 +675,13 @@ function Invoke-Help {
     Write-Host ""
     Write-Host "Команды:" -ForegroundColor Yellow
     Write-Host "  status                 Показать состояние AI-папки" -ForegroundColor Gray
-    Write-Host "  pack                   Собрать zip для новой сессии" -ForegroundColor Gray
-    Write-Host "  unpack                 Распаковать ответ ИИ из буфера" -ForegroundColor Gray
-    Write-Host "  unpack -DryRun         Предпросмотр распаковки" -ForegroundColor Gray
-    Write-Host "  save                   Сохранить чат через Notepad" -ForegroundColor Gray
-    Write-Host "  save -FromClipboard    Сохранить чат из буфера" -ForegroundColor Gray
+    Write-Host "  zip                    Собрать zip для новой сессии" -ForegroundColor Gray
+    Write-Host "  down                   Распаковать ответ ИИ из буфера" -ForegroundColor Gray
+    Write-Host "  down -DryRun           Предпросмотр распаковки" -ForegroundColor Gray
     Write-Host "  repo-push              Залить файлы контекста в GitHub-репозиторий" -ForegroundColor Gray
     Write-Host "  repo-push -DryRun      Показать, что будет залито" -ForegroundColor Gray
     Write-Host "  repo-pull              Скачать файлы из репозитория в _repo\" -ForegroundColor Gray
-    Write-Host "  session-close          Закрыть сессию: unpack + repo-push" -ForegroundColor Gray
-    Write-Host "  session-close -SkipRepo Только unpack, без repo-push" -ForegroundColor Gray
+    Write-Host "  session-close          Закрыть сессию: down + zip + repo-push" -ForegroundColor Gray
     Write-Host ""
     Write-Host "Дополнительные параметры:" -ForegroundColor Yellow
     Write-Host "  -Root <путь>       Корень AI-папки" -ForegroundColor Gray
@@ -758,9 +699,8 @@ function Invoke-Help {
 #  ДИСПЕТЧЕР
 # =====================================================================
 switch ($Command) {
-    'pack'           { Invoke-Pack }
-    'unpack'         { Invoke-Unpack }
-    'save'           { Invoke-Save }
+    'zip'            { Invoke-Zip }
+    'down'           { Invoke-Down }
     'status'         { Invoke-Status }
     'repo-push'      { Invoke-RepoPush }
     'repo-pull'      { Invoke-RepoPull }
