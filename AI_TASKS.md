@@ -13,20 +13,15 @@
 
 Порядок разбора:
 
-- startMain.sh (точка входа). — ГОТОВО
-- Conf/ (6 файлов). — ГОТОВО
-- Func/Scripts/funcUtil.sh, funcCheck.sh. — ГОТОВО
-- Def/ (5 файлов). — НЕ НАЧАТО
-- Func/01_Config … Func/10_Sites (по модулям). — НЕ НАЧАТО
-- Func/Menu/funcMenu.sh (ядро меню). — НЕ НАЧАТО
+- startMain.sh — ГОТОВО
+- Conf/ (6 файлов) — ГОТОВО
+- Func/Scripts/funcUtil.sh, funcCheck.sh — ГОТОВО
+- Func/Menu/funcMenu.sh — ГОТОВО (прочитан)
+- Def/ (5 файлов) — ГОТОВО (структура, все вопросы открыты)
+- Func/01_Config … Func/10_Sites — НЕ НАЧАТО
+- Func/08_VM/81_funcEsxi.sh — НЕ НАЧАТО
 
 Формат результата: патчи в patches/fix_<имя>.md + готовый код для вставки.
-
-Разбивается на подзадачи по мере разбора (по модулям).
-
-□ T-002 — Проверить sanitize_patterns.json
-Проверить, ловит ли IP 192.168.x.x, короткие хостнеймы (WSW, WSA),
-пароли из server.list. Если нет — добавить паттерны.
 
 □ T-003 — Повторный проход по ConfManual.sh
 Устаревшие данные, SyncroSrv без else, дублирование SRVNeedName/SyncSRV,
@@ -38,15 +33,43 @@ source_required не проверяет код возврата source — ур�
 и реагировать по уровню, или оставить как есть.
 
 □ T-005 — Ревизия «мёртвых» переменных ConfPaths.sh
-DirScriptsMenu, DirScriptsTest, DirMainDock, DirMainConfigDef (DEF vs Def).
-Проверить использование в модулях, принять решение.
+DirMainDock, DirMainConfigDef (DEF vs Def). Проверить использование
+в модулях, принять решение. (DirScriptsMenu и DirScriptsTest — закрыты.)
 
 □ T-006 — Пароли в server.list
-Проверить права (chmod 600), проверить обезличиватель.
-Отдельная задача безопасности.
+Проверить права (chmod 600). Обезличиватель проверен — ловит.
 
-□ T-007 — AI_MAP.md: исправить путь funcMenu.sh
-В карте указано Func/Menu/, по факту — корень DirScripts.
+□ T-011 — Func/01_Config/12_funcUsers.sh:370
+`case` закрыт через `fi` вместо `esac`. Синтаксическая ошибка.
+Функции из файла не появляются в меню.
+
+□ T-012 — Func/08_VM/81_funcEsxi.sh:215
+`done /dev/null` вместо `done < /dev/null`. Синтаксическая ошибка.
+
+□ T-013 — Syntax error в 10 файлах Func/
+- Func/01_Config/12_funcUsers.sh:370 (fi вместо esac)
+- Func/01_Config/15_funcSslRsa.sh:235
+- Func/01_Config/16_funcCertbot.sh:264
+- Func/01_Config/17_funcDocker.sh:273
+- Func/02_Backup/23_funcBackrest.sh:104
+- Func/02_Backup/24_funcZrepl.sh:96
+- Func/03_Servers/32_funcSql.sh:163
+- Func/04_FW/44_funcSeLinux.sh:136
+- Func/06_Logs/61_funcLogs.sh:114
+- Func/08_VM/81_funcEsxi.sh:215
+Чиним при разборе каждого файла.
+
+□ T-015 — Автозапуск монтирования Nextcloud на FreeBSD
+Смонтировать /ARC/Scripts через rclone при старте системы.
+Не systemd — нужен rc-скрипт в /usr/local/etc/rc.d/ и запись в /etc/rc.conf,
+или cron @reboot. Скрипт 57_funcDiskMount.sh — для ручного управления.
+Права: --file-perms 0640 --dir-perms 0750 --uid 0 --gid 0.
+
+□ T-016 — Доделать 57_funcDiskMount.sh
+Модуль для FreeBSD: fusermount → umount, проверка kldload fusefs.
+Функции: mountNextcloudScripts, umountNextcloudScripts,
+statusNextcloudScripts. Регистрация в меню — уточнить синтаксис
+MenuRegister.
 
 ## ⏳ СЛЕДУЮЩЕЕ
 
@@ -125,9 +148,9 @@ DirScriptsMenu, DirScriptsTest, DirMainDock, DirMainConfigDef (DEF vs Def).
 2026-09-28 (продолжение 2) — Защита down, merge_project.ps1, чистка папок
 
 - ☑ T-002 — Финально решено: имя down оставлено. Закрыто.
-- ☑ T-004 — merge_project.ps1 доработан (пункты 2,3,4,5,6,8,9,10), протестирован (68 файлов, дамп 730.4 КБ, 123 замены, 0 остатков), добавлен в config.json, залит в репозиторий. Закрыто.
-- ☑ T-006 — Защита в down усилена: проверка парности BEGIN/END + отказ от блока при маркере BEGIN-FILE в теле. Проверено на тестовых пакетах. Закрыто.
-- ☑ T-149 — Удалены папки _gist\ и _test\ (устаревшие/временные).
+- ☑ T-004 — merge_project.ps1 доработан, протестирован, залит. Закрыто.
+- ☑ T-006 — Защита в down усилена: парность BEGIN/END + отказ от блока при маркере в теле. Закрыто.
+- ☑ T-149 — Удалены папки _gist\ и _test\.
 - ☑ T-150 — config.json обновлён: 10 файлов, добавлен merge_project.ps1.
 - ☑ T-151 — 10 файлов залиты в репозиторий.
 - ☑ T-152 — merge_project.ps1 читается через raw-URL.
@@ -135,17 +158,17 @@ DirScriptsMenu, DirScriptsTest, DirMainDock, DirMainConfigDef (DEF vs Def).
 2026-09-29 — Синхронизация после переполнения, ревизия AI_START.md
 
 - ☑ T-153 — Прочитаны все файлы из репозитория по правилу 4.
-- ☑ T-154 — Закрыт открытый вопрос про _END_OF_SESSION_PROMPT.txt (читается через raw-URL с уникальным ?v=).
+- ☑ T-154 — Закрыт открытый вопрос про _END_OF_SESSION_PROMPT.txt.
 - ☑ T-155 — Расхождение «9 файлов» → «10 файлов» исправлено в AI_CONTEXT.md.
-- ☑ T-156 — Правило 4 в AI_START.md переведено на config.json (секция files).
+- ☑ T-156 — Правило 4 в AI_START.md переведено на config.json.
 - ☑ T-157 — Таблица файлов в AI_START.md сокращена до смысловых ролей.
 - ☑ T-158 — AI_TASKS.md синхронизирован: T-002, T-004, T-006 → ГОТОВО.
 
 2026-09-29 (продолжение) — Карта проекта AI_MAP.md
 
-- ☑ T-159 — Попытка прочитать merge_project_dump.txt через raw-URL — обрезается. Вывод: читать дамп целиком нельзя.
+- ☑ T-159 — merge_project_dump.txt через raw-URL обрезается. Вывод: читать дамп целиком нельзя.
 - ☑ T-160 — Разобрано оглавление дампа: 67 файлов, 10 модулей.
-- ☑ T-161 — Обнаружено: startMain.sh не собирается дампом (в scriptpaths.list нет корня).
+- ☑ T-161 — startMain.sh не собирается дампом (в scriptpaths.list нет корня).
 - ☑ T-162 — Создан AI_MAP.md — карта проекта.
 - ☑ T-163 — config.json дополнен AI_MAP.md (11 файлов).
 - ☑ T-164 — AI_START.md: правило 9 (разбор по одному файлу прямо в чат).
@@ -156,37 +179,54 @@ DirScriptsMenu, DirScriptsTest, DirMainDock, DirMainConfigDef (DEF vs Def).
 - ☑ T-166 — Прочитаны все файлы из config.json.
 - ☑ T-167 — Разобран startMain.sh. Найдены: ANSI в Cron, избыточный exit $?. Исправлен ANSI.
 - ☑ T-168 — Разобран ConfAll.sh. Добавлены проверки базовых переменных и source_required.
-- ☑ T-169 — Разобран ConfManual.sh. Взят на контроль, есть устаревшие данные. Правки отложены (T-003).
-- ☑ T-170 — Разобран ConfSets.sh. Fallback freebsd-version || uname -r. ANSI → err.
-- ☑ T-171 — Разобран ConfServers.sh. Путь server.list: ${DirMain:-/ARC/_Scripts} → ${DirScripts}.
-- ☑ T-172 — Разобран ConfPaths.sh. Подготовлен список «мёртвых» переменных (T-005).
+- ☑ T-169 — Разобран ConfManual.sh. Взят на контроль (T-003).
+- ☑ T-170 — Разобран ConfSets.sh. Fallback freebsd-version || uname -r.
+- ☑ T-171 — Разобран ConfServers.sh. Путь server.list исправлен.
+- ☑ T-172 — Разобран ConfPaths.sh. Подготовлен список «мёртвых» переменных.
 - ☑ T-173 — Разобран ConfSources.sh. Найден блокирующий баг: local вне функции.
 - ☑ T-174 — Разобран funcUtil.sh. Добавлены err(), warn(), ${1:?...}.
 - ☑ T-175 — Разобран funcCheck.sh. Убрано глушение mkdir, добавлен DirScriptsModules.
 - ☑ T-176 — Выяснено: funcMenu.sh лежит в ${DirScripts} (корень), не в Func/.
-- ☑ T-177 — Добавлена поддержка Modules/ (DirScriptsModules в ConfPaths.sh, сканирование в ConfSources.sh, создание в funcCheck.sh).
-- ☑ T-178 — Обновлён AI_MAP.md: путь funcMenu.sh исправлен.
-- ☑ T-179 — Согласован новый формат ответов ИИ при разборе кода (без предварительного кода, список предложений, вопрос по каждому пункту).
+- ☑ T-177 — Добавлена поддержка Modules/.
+- ☑ T-178 — Обновлён AI_MAP.md: путь funcMenu.sh.
+- ☑ T-179 — Согласован новый формат ответов ИИ при разборе кода.
+
+2026-09-30 0017 — Правки пути funcMenu.sh, разбор Def/, монтирование Nextcloud
+
+- ☑ T-007 — AI_MAP.md обновлён: путь funcMenu.sh, статус разбора, Modules/.
+- ☑ T-008 — Путь funcMenu.sh возвращён правильный: ${DirScripts}/Func/Menu/.
+  Правки в ConfSources.sh, ConfPaths.sh, funcCheck.sh.
+- ☑ T-009 — Modules добавлен в scriptpaths.list.
+- ☑ T-010 — Решено: корень в scriptpaths.list не добавляем (вариант A).
+- ☑ T-014 — startMain.sh: разделены MenuStart (интерактив) и menuExecuteCLI (CLI/Cron).
+- ☑ T-180 — Разобраны 5 файлов Def/: users.cfg, dns.list, esxi.list, scriptpaths.list, server.list.
+- ☑ T-181 — WebDAV Nextcloud проверен (401 Unauthorized, работает).
+- ☑ T-182 — Монтирование Nextcloud через rclone на WSW: смонтировано вручную.
+- ☑ T-183 — Права монтирования: --file-perms 0640 --dir-perms 0750 --uid 0 --gid 0.
+- ☑ T-184 — Создан Win/check_crlf.ps1 — проверка CRLF + BOM из scriptpaths.list.
+- ☑ T-185 — Исправлен ConfAll.sh: путь к funcCheck.sh (добавлен /Scripts/).
+- ☑ T-186 — Панель запускается: bash /ARC/Scripts/startMain.sh открывает меню.
+- ☑ T-187 — Найдены syntax error в 10 файлах Func/ (T-011, T-012, T-013).
+- ☑ T-188 — Согласованы новые правила: в чате сжато, комментарии в коде подробно,
+  команды без -y при отладке, не проверять владельца.
 
 ## 📊 СТАТИСТИКА
 
 | Метрика | Значение |
 |---------|----------|
-| Всего задач | 82 |
-| В работе | 7 (T-001…T-007) |
-| Готово | 75 |
-| Прогресс T-001 | ~10% (Conf/ разобран) |
+| Всего задач | 98 |
+| В работе | 11 (T-001, T-003…T-006, T-011…T-013, T-015, T-016) |
+| Готово | 87 |
+| Прогресс T-001 | ~15% (startMain, Conf/, Scripts/, Menu/, Def/) |
 
 ## 🎯 ТЕКУЩИЙ ФОКУС
 
 Что делаем в следующей сессии:
 
-- Продолжить T-001: перейти к Def/ (5 файлов: dns.list, esxi.list,
-  scriptpaths.list, server.list, users.cfg). Владелец решит: разбирать
-  их (структура, кодировка, валидность) или пропустить и перейти
-  сразу к Func/01_Config.
-- Разобрать Func/01_Config (9 файлов: 11_funcNet.sh … 19_funcCyrillic.sh).
-- Разобрать Func/Menu/funcMenu.sh — ядро меню (важно: проверить
-  использование DirScriptsMenu и подтвердить реальный путь).
+- Продолжить T-001: Func/01_Config (9 файлов: 11_funcNet.sh … 19_funcCyrillic.sh).
+  Включая T-011 (12_funcUsers.sh) и T-013.
+- Разобрать T-013 — syntax error в 10 файлах Func/.
+- Доделать T-015 (автозапуск монтирования Nextcloud на FreeBSD)
+  и T-016 (57_funcDiskMount.sh).
 
 Правило: в рамках одной сессии можно обсуждать несколько задач.
