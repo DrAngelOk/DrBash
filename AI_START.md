@@ -17,6 +17,7 @@ AI START — DrAngelOk/DrBash
 
 При необходимости — ai_context.ps1, merge_project_dump.txt,
 merge_project.ps1, sanitize_for_repo.ps1, sanitize_patterns.json.
+Сейчас такой необходимости нет.
 
 Каждый файл — по одному URL на сообщение. К URL добавляй ?v=<уникальное>
 для обхода кэша (числа, дата-время — что угодно уникальное).
@@ -27,7 +28,6 @@ text
 Открой файл:
 https://raw.githubusercontent.com/DrAngelOk/DrBash/main/AI_TASKS.md?v=20260929_090000
 
-Покажи весь файл.
 🔗 Файлы в репозитории
 Репозиторий: https://github.com/DrAngelOk/DrBash
 Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
