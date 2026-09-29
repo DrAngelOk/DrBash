@@ -39,7 +39,8 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 Архитектура:
 
 - Меню-фреймворк с регистрацией функций через MenuRegister.
-- Диспетчер запуска: menuExecuteCLI в Func/Menu/funcMenu.sh.
+- Диспетчер запуска: menuExecuteCLI (CLI/Cron) и MenuStart (интерактив)
+  в Func/Menu/funcMenu.sh.
 - Двухплатформенная абстракция через переменную ${OSType} (RedOS / FreeBSD).
 - Модули пронумерованы: 01_Config, 02_Backup, ..., 10_Sites.
 - Файлы внутри модулей: NN_funcName.sh.
@@ -47,7 +48,13 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 Карта проекта (структура, модули, связи, статус разбора) — в AI_MAP.md.
 
 Статус проекта: идёт первичный разбор кода (T-001).
-Модуль Conf/ (6 файлов) + funcUtil.sh + funcCheck.sh — разобраны.
+Разобраны: startMain.sh, Conf/ (6 файлов), Func/Scripts/funcUtil.sh,
+Func/Scripts/funcCheck.sh, Func/Menu/funcMenu.sh (прочитан).
+Def/ (5 файлов) — структура зафиксирована, вопросы открыты.
+
+Панель запускается: `bash /ARC/Scripts/startMain.sh` открывает меню.
+Несколько модулей с syntax error — не блокируют запуск,
+функции из них не появляются в меню (T-013).
 
 ## 🖥 ИНФРАСТРУКТУРА (подтверждено владельцем)
 
@@ -60,6 +67,14 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 (cloud.cszn48.ru@45443). Из-за этого git не работает с файлами на Z:.
 Команды gh (gh repo clone, gh gist create) падают. Используем только
 gh api — он работает.
+
+Серверы (из Def/server.list):
+- WSW (192.168.1.21, ens160, root) — рабочий веб-сервер, шары NFS01.
+- WSD (192.168.2.11, ens160, root) — dev-версия WSW.
+- GSW (192.168.1.25, ens192, drangel) — рабочий, sync. Хостит Nextcloud.
+- GSD (192.168.2.15, ens192, drangel) — dev-версия GSW.
+- WS (192.168.1.11, ens160, root) — шары NFS_D.
+- sv-website (192.168.1.15, ens160, apache, порт 2222) — сайты.
 
 ## 📜 ИСТОРИЯ СЕССИЙ
 
@@ -246,30 +261,79 @@ gh api — он работает.
 Итог сессии: Conf/ + утилиты разобраны, критические баги исправлены.
 Накоплен список «долгов» для следующих сессий.
 
+### Сессия 2026-09-30 0017 — Правки пути funcMenu.sh, разбор Def/, монтирование Nextcloud
+
+Что делали:
+
+- Прочитали все файлы из config.json.
+- Обнаружили: AI_MAP.md в репозитории устарел (статус «разобрано 0»,
+  неверный путь funcMenu.sh). Исправлено (T-007).
+- Обнаружили расхождение: funcMenu.sh лежит в ${DirScripts}/Func/Menu/,
+  а не в ${DirScripts}/ (как решили в прошлой сессии по ошибке).
+  Исправлено в ConfSources.sh и ConfPaths.sh (T-008).
+- ConfSources.sh: путь funcMenu.sh через переменную DirScriptsMenu.
+- ConfPaths.sh: DirScriptsMenu = ${DirScripts}/Func/Menu (было
+  ${DirScripts}/Menu).
+- funcCheck.sh: добавлен ${DirScriptsMenu} в paths_to_check.
+- Разобрали 5 файлов Def/: users.cfg, dns.list, esxi.list,
+  scriptpaths.list, server.list. Структура зафиксирована, все вопросы
+  открыты — разберём в модулях Func/.
+- T-009: добавили Modules в scriptpaths.list.
+- T-010: вариант A — корень в scriptpaths.list не добавляем.
+- Согласовали: реальные IP, имена, пароли в патчах и пакете
+  маскируются.
+- Задача: примонтировать папку скриптов с Nextcloud (GSW, WebDAV)
+  в /ARC/Scripts на WSW.
+- Проверили WebDAV: http://192.168.1.25/remote.php/dav/files/angeldr/DOC/СЕРВЕРА/Scripts/
+  — 401 Unauthorized (работает).
+- Смонтировали вручную через rclone: success.
+- Права: --file-perms 0640 --dir-perms 0750 --uid 0 --gid 0
+  (root:wheel). Пароли защищены, всё дерево — только для root/wheel.
+- startMain.sh запуск через bash (без +x на файлах).
+- Обнаружили проблему с CRLF: файлы в Nextcloud с Windows-переводами
+  строк. Написали PowerShell-скрипт Win/check_crlf.ps1 — проверка
+  файлов из scriptpaths.list на CRLF и BOM. Владелец правит вручную.
+- Обнаружили, что startMain.sh вызывал menuExecuteCLI вместо MenuStart
+  для интерактива. Без аргументов menuExecuteCLI возвращает 0 — меню
+  не открывалось. Исправлено (T-014).
+- Обнаружили блокирующий баг в ConfAll.sh: путь к funcCheck.sh без
+  /Scripts/. Исправлено.
+- Панель запускается: bash /ARC/Scripts/startMain.sh открывает меню.
+- Обнаружены syntax error в 10 файлах Func/ (case ... fi вместо esac,
+  done /dev/null вместо done < /dev/null). Функции из них не появляются
+  в меню. Чиним при разборе каждого файла (T-011, T-012, T-013).
+
+Итог сессии: панель запускается, монтирование Nextcloud работает
+вручную, выявлены syntax-баги в 10 модулях. Автозапуск монтирования
+на FreeBSD — задача T-015.
+
 ## ❓ ОТКРЫТЫЕ ВОПРОСЫ
 
-1. `source_required` не проверяет код возврата `source` — из-за этого
-   уровень `warning` не работает для файлов, которые делают `exit 1`
-   внутри (или чей внутренний код возвращает ошибку, но в конце файла
-   стоит безусловный `exit 1`). Касается ConfSets.sh, ConfServers.sh,
-   ConfSources.sh. Системная правка funcUtil.sh — отложена.
+1. `source_required` не проверяет код возврата `source` — уровень
+   `warning` не работает для файлов с `exit 1`. Системная правка
+   funcUtil.sh — отложена (T-004).
 2. ConfManual.sh: устаревшие данные, `SyncroSrv` без `else` (риск
    unbound под set -u), возможное дублирование `SRVNeedName`/`SyncSRV`,
-   `DebugScripts` без явного читателя. Правки отложены.
-3. `sanitize_patterns.json` — проверить, ловит ли IP-адреса 192.168.x.x,
-   короткие хостнеймы (WSW, WSA), пароли из server.list. Если нет —
-   добавить паттерны.
+   `DebugScripts` без явного читателя. Правки отложены (T-003).
+3. `sanitize_patterns.json` — проверен, ловит IP-адреса, короткие
+   хостнеймы, пароли из server.list. Закрыто в прошлой сессии.
 4. ConfPaths.sh — потенциально мёртвые/неверные переменные:
-   - `DirScriptsMenu` (= ${DirScripts}/Menu) — не создаётся,
-     не используется. Вариант D: отложено.
-   - `DirScriptsTest` — не создаётся, использовать ли Test/ — открыто.
+   - `DirScriptsMenu` — теперь живая (T-008).
+   - `DirScriptsTest` — живая (в scriptpaths.list).
    - `DirMainDock` — не создаётся в funcCheck.sh, использовать ли — открыто.
-   - `DirMainConfigDef` (= ${DirMain}/DEF/CFG) — регистр DEF vs Def,
-     намеренно или опечатка — открыто.
-5. AI_MAP.md — там неверно указан путь к funcMenu.sh (Func/Menu/ вместо
-   корня DirScripts). Исправлено в этой сессии (см. патч).
-6. ConfServers.sh — пароли в server.list хранятся открыто на сервере.
-   Нужна проверка прав (600) и обезличивателя. Отдельная задача.
+   - `DirMainConfigDef` (= ${DirMain}/DEF/CFG) — регистр DEF vs Def —
+     открыто.
+5. ConfServers.sh — пароли в server.list хранятся открыто на сервере.
+   Нужна проверка прав (chmod 600). T-006.
+6. Def/ файлы — все вопросы открыты, разберём в модулях Func/:
+   - users.cfg: все строки закомментированы, пароли с #, $, , —
+     ломают ли парсер.
+   - dns.list: punycode «как есть» или декодировать.
+   - esxi.list: свой парсер или parseVerticalServerConfig.
+   - scriptpaths.list: merge_project.ps1 рекурсивно обходит?
+   - server.list: NONE как маркер, пароли с > < # * — где-то без
+     кавычек, формат mounts source::target, functions=ssh,backup,
+     регистр секции [sv-website], ssh_port=2222, webdav_*.
 
 ## 🛠 КОМАНДЫ ai_context.ps1
 
@@ -297,6 +361,7 @@ gh api — он работает.
 | sanitize_for_repo.ps1 | Обезличиватель. |
 | sanitize_patterns.json | Паттерны обезличивания (26 шт.). |
 | config.json | Конфигурация: репозиторий, маркеры пакета, пути, список файлов. |
+| Win/ | Windows-утилиты (check_crlf.ps1). |
 | chats/ | Резюме сессий. |
 | patches/ | Патчи по функциям. |
 | dumps/ | Оригинальные дампы (с паролями). |
@@ -320,14 +385,20 @@ gh api — он работает.
 - Разбор кода (T-001) — по одному файлу прямо в чат.
 - Пути в config.json — с прямыми слешами (/).
 - При разборе кода: реальные IP, имена, пароли маскируются в патчах
-  и пакете переноса (<SRV_WWW_IP>, <UserBack> и т.п.).
+  и пакете переноса.
 - Формат ответов ИИ при разборе кода: без предварительного кода до
   согласования; короткий список предложений; по каждому пункту вопрос
   «делаем / не делаем».
+- В чате — сжато, по делу. Комментарии в коде — подробные.
+- В чате при отладке — команды без -y (видно, что ставится).
+  -y — только в финальном скрипте.
+- Не проверять владельца, не переспрашивать вывод команд.
+- Кириллица в путях Nextcloud — остаётся везде.
+- Все ключи в server.list — единообразно во всех секциях (NONE если не используется).
 
 ## 📁 КОДИРОВКА ФАЙЛОВ
 
-- Bash-скрипты: UTF-8 без BOM.
+- Bash-скрипты: UTF-8 без BOM, LF.
 - PowerShell-инструменты: ASCII в исполняемых строках. UTF-8 с BOM (PS 5.1) или без BOM (PS 7).
 - JSON-файлы: UTF-8 с BOM.
 
@@ -349,4 +420,8 @@ gh api — он работает.
 - _END_OF_SESSION_PROMPT.txt читается через raw-URL с ?v=.
 - Пути в config.json — с прямыми слешами (/) — защита от потери \.
 - ConfManual.sh — под контролем, требует повторного прохода.
-- funcMenu.sh лежит в ${DirScripts} (корень), не в Func/.
+- funcMenu.sh лежит в ${DirScripts}/Func/Menu/ (не в корне).
+- Панель запускается: bash /ARC/Scripts/startMain.sh (без +x).
+- Монтирование Nextcloud на WSW через rclone: смонтировано вручную.
+- Права монтирования: --file-perms 0640 --dir-perms 0750 --uid 0 --gid 0.
+- CRLF в файлах Nextcloud — править вручную, скрипт Win/check_crlf.ps1.
