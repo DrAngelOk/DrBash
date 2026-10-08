@@ -19,7 +19,6 @@
 - Func/Menu/funcMenu.sh — ГОТОВО (прочитан)
 - Def/ (5 файлов) — ГОТОВО (структура, все вопросы открыты)
 - Func/01_Config … Func/10_Sites — НЕ НАЧАТО
-- Func/08_VM/81_funcEsxi.sh — НЕ НАЧАТО
 
 Формат результата: патчи в patches/fix_<имя>.md + готовый код для вставки.
 
@@ -27,27 +26,24 @@
 Устаревшие данные, SyncroSrv без else, дублирование SRVNeedName/SyncSRV,
 DebugScripts без читателя. Разобрать, что устарело, что оставить.
 
-□ T-004 — Системная правка funcUtil.sh: source_required
+□ T-004 — Системная правка funcUtil.sh: source_required (ОТЛОЖЕНО)
 source_required не проверяет код возврата source — уровень warning
-не работает для файлов с exit 1. Решить: проверять код возврата
-и реагировать по уровню, или оставить как есть.
+не работает для файлов с exit 1. Вернуться позже.
 
-□ T-005 — Ревизия «мёртвых» переменных ConfPaths.sh
+□ T-005 — Ревизия «мёртвых» переменных ConfPaths.sh (ОТЛОЖЕНО)
 DirMainDock, DirMainConfigDef (DEF vs Def). Проверить использование
-в модулях, принять решение. (DirScriptsMenu и DirScriptsTest — закрыты.)
+в модулях. Вернуться при разборе модулей.
 
-□ T-006 — Пароли в server.list
-Проверить права (chmod 600). Обезличиватель проверен — ловит.
-
-□ T-011 — Func/01_Config/12_funcUsers.sh:370
+□ T-011 — Func/01_Config/12_funcUsers.sh:370 (ОТЛОЖЕНО)
 `case` закрыт через `fi` вместо `esac`. Синтаксическая ошибка.
-Функции из файла не появляются в меню.
+Чиним при разборе файла 12_funcUsers.sh.
 
 □ T-012 — Func/08_VM/81_funcEsxi.sh:215
 `done /dev/null` вместо `done < /dev/null`. Синтаксическая ошибка.
+Чиним при разборе 81_funcEsxi.sh.
 
 □ T-013 — Syntax error в 10 файлах Func/
-- Func/01_Config/12_funcUsers.sh:370 (fi вместо esac)
+- Func/01_Config/12_funcUsers.sh:370 (fi вместо esac) — T-011
 - Func/01_Config/15_funcSslRsa.sh:235
 - Func/01_Config/16_funcCertbot.sh:264
 - Func/01_Config/17_funcDocker.sh:273
@@ -56,20 +52,30 @@ DirMainDock, DirMainConfigDef (DEF vs Def). Проверить использо�
 - Func/03_Servers/32_funcSql.sh:163
 - Func/04_FW/44_funcSeLinux.sh:136
 - Func/06_Logs/61_funcLogs.sh:114
-- Func/08_VM/81_funcEsxi.sh:215
+- Func/08_VM/81_funcEsxi.sh:215 — T-012
 Чиним при разборе каждого файла.
 
-□ T-015 — Автозапуск монтирования Nextcloud на FreeBSD
-Смонтировать /ARC/Scripts через rclone при старте системы.
-Не systemd — нужен rc-скрипт в /usr/local/etc/rc.d/ и запись в /etc/rc.conf,
-или cron @reboot. Скрипт 57_funcDiskMount.sh — для ручного управления.
-Права: --file-perms 0640 --dir-perms 0750 --uid 0 --gid 0.
+□ T-015 — Автозапуск монтирования Nextcloud
+FreeBSD: rc-скрипт в /usr/local/etc/rc.d/ + /etc/rc.conf.
+RedOS: systemd-юнит.
+Права монтирования: --file-perms 0640 --dir-perms 0750 --uid 0 --gid 0.
+Точка монтирования: /mnt/scripts. Синхронизация: rsync в /ARC/Scripts.
 
-□ T-016 — Доделать 57_funcDiskMount.sh
-Модуль для FreeBSD: fusermount → umount, проверка kldload fusefs.
-Функции: mountNextcloudScripts, umountNextcloudScripts,
-statusNextcloudScripts. Регистрация в меню — уточнить синтаксис
-MenuRegister.
+□ T-016 — Модуль 57_funcDiskMount.sh
+Модуль выдан целиком в сессии 2026-10-09 0008. Требуется:
+- Скопировать на сервер.
+- Проверить синтаксис (bash -n).
+- Проверить, что funcUtil.sh содержит createDir.
+- Отладить: installNextcloudMountDeps → mount → sync → umount.
+- Уточнить: fuse3 vs fuse в RedOS, /etc/fuse.conf, rclone obscure
+  (детерминирован?).
+
+□ T-017 — Универсальный механизм монтирования нескольких папок
+Сейчас 57_funcDiskMount.sh работает с одним монтированием
+(Nextcloud Scripts). Когда понадобится вторая монтируемая папка —
+переработать на универсальный механизм: список монтирований в Def/,
+функции с аргументом (имя), mountAll / umountAll / statusAll.
+Не забегать раньше времени.
 
 ## ⏳ СЛЕДУЮЩЕЕ
 
@@ -210,23 +216,34 @@ MenuRegister.
 - ☑ T-188 — Согласованы новые правила: в чате сжато, комментарии в коде подробно,
   команды без -y при отладке, не проверять владельца.
 
+2026-10-09 0008 — Модуль 57_funcDiskMount.sh, createDir, syncNextcloud
+
+- ☑ T-006 — Пароли в server.list. Обезличиватель проверен. Закрыто.
+- ☑ T-189 — Согласована архитектура монтирования: /mnt/scripts → rsync → /ARC/Scripts.
+- ☑ T-190 — В funcUtil.sh добавлена функция createDir.
+- ☑ T-191 — Правило: заменять mkdir -p на createDir везде.
+- ☑ T-192 — Спроектирован модуль 57_funcDiskMount.sh (ID меню 5.7.x).
+- ☑ T-193 — Решение: конфиг rclone — в Def/rclone.conf.
+- ☑ T-194 — Согласовано правило «один вопрос за раз».
+- ☑ T-195 — Согласовано: по каждому пакету — отдельная команда установки.
+
 ## 📊 СТАТИСТИКА
 
 | Метрика | Значение |
 |---------|----------|
-| Всего задач | 98 |
-| В работе | 11 (T-001, T-003…T-006, T-011…T-013, T-015, T-016) |
-| Готово | 87 |
-| Прогресс T-001 | ~15% (startMain, Conf/, Scripts/, Menu/, Def/) |
+| Всего задач | 105 |
+| В работе | 7 (T-001, T-003, T-011, T-012, T-013, T-015, T-016) |
+| Отложено | 3 (T-004, T-005, T-011) |
+| Готово | 93 |
+| Прогресс T-001 | ~15% |
 
 ## 🎯 ТЕКУЩИЙ ФОКУС
 
 Что делаем в следующей сессии:
 
 - Продолжить T-001: Func/01_Config (9 файлов: 11_funcNet.sh … 19_funcCyrillic.sh).
-  Включая T-011 (12_funcUsers.sh) и T-013.
-- Разобрать T-013 — syntax error в 10 файлах Func/.
-- Доделать T-015 (автозапуск монтирования Nextcloud на FreeBSD)
-  и T-016 (57_funcDiskMount.sh).
+- T-016: скопировать 57_funcDiskMount.sh на сервер, отладить.
+- T-015: автозапуск монтирования (rc-скрипт FreeBSD / systemd RedOS).
+- T-017: универсальный механизм монтирования (когда понадобится).
 
 Правило: в рамках одной сессии можно обсуждать несколько задач.
