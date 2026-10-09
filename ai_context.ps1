@@ -44,28 +44,53 @@
     Требуется PowerShell 5.1+ или PowerShell 7+ (рекомендуется).
     Для команд repo-* требуется gh CLI + авторизация (scope: repo).
     Используется публичный репозиторий DrAngelOk/DrBash.
+
+    АРХИТЕКТУРА ВКРАТЦЕ:
+      - Маркеры пакета и список файлов хранятся в config.json
+        (секции package и files). Скрипт их НЕ дублирует.
+      - down читает маркеры из config.json, а не из кода — так
+        формат пакета можно менять, не трогая скрипт.
+      - При закрытии сессии пакет содержит: AI_CONTEXT.md,
+        AI_TASKS.md, AI_MAP.md, свежий chat-файл, патчи.
+      - repo-push заливает ВСЕ файлы из config.json -> files,
+        включая AI_MAP.md.
 #>
 
 [CmdletBinding()]
 param(
+    # Имя команды. Пустое значение = показать справку.
     [Parameter(Position = 0)]
     [ValidateSet('zip','down','status','repo-push','repo-pull','session-close','help','')]
     [string]$Command = '',
 
+    # Корневая папка AI. Все операции идут относительно неё.
     [string]$Root        = "Z:\DOC\СЕРВЕРА\Scripts\AI",
+
+    # Сколько последних патчей включать в zip-пакет.
     [int]   $LastPatches = 30,
+
+    # Сколько последних chat-файлов включать в zip-пакет.
     [int]   $LastChats   = 5,
+
+    # Предпросмотр без записи (down, repo-push).
     [switch]$DryRun,
+
+    # Отключить логирование в logs\ai_context.log.
     [switch]$NoLog
 )
 
+# Любая ошибка — стоп. Скрипт управляющий, тихие падения недопустимы.
 $ErrorActionPreference = 'Stop'
+
+# UTF-8 без BOM — стандарт для всех текстовых файлов проекта.
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 # =====================================================================
 #  ОБЩИЕ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # =====================================================================
 
+# Печатает заголовок команды в едином стиле: пустая строка,
+# две линии "=" и название. Используется всеми командами.
 function Show-Header {
     param([string]$Title)
     Write-Host ""
@@ -74,6 +99,8 @@ function Show-Header {
     Write-Host ("=" * 60) -ForegroundColor DarkCyan
 }
 
+# Гарантирует существование папки. Аналог mkdir -p.
+# Молча ничего не делает, если папка уже есть.
 function Ensure-Dir {
     param([string]$Path)
     if (-not (Test-Path $Path)) {
@@ -81,6 +108,9 @@ function Ensure-Dir {
     }
 }
 
+# Запись текста в файл в UTF-8 без BOM.
+# Создаёт родительскую папку, если её нет.
+# Использует .NET WriteAllText — корректно работает в PS 5.1.
 function Write-FileUtf8 {
     param([string]$Path, [string]$Content)
     $dir = Split-Path $Path -Parent
@@ -88,6 +118,9 @@ function Write-FileUtf8 {
     [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
 }
 
+# Запись в лог logs\ai_context.log.
+# Логи НЕ должны ломать основную работу — все ошибки глушатся.
+# Отключается флагом -NoLog.
 function Write-AiLog {
     param([string]$Message)
     if ($NoLog) { return }
@@ -102,6 +135,9 @@ function Write-AiLog {
     }
 }
 
+# Чтение config.json. Бросает исключение, если файла нет.
+# Читает через ReadAllText с явной UTF-8 — так корректно
+# работают русские пути и не ломается PS 5.1.
 function Get-Config {
     param([string]$RootPath)
     $cfgPath = Join-Path $RootPath 'config.json'
@@ -112,6 +148,9 @@ function Get-Config {
     return $cfgText | ConvertFrom-Json
 }
 
+# Сохранение config.json. Сейчас нигде не вызывается, но
+# оставлено для будущих правок конфига из скрипта.
+# Пишет через Write-FileUtf8 (UTF-8 без BOM).
 function Save-Config {
     param([string]$RootPath, $Config)
     $cfgPath = Join-Path $RootPath 'config.json'
@@ -119,6 +158,8 @@ function Save-Config {
     Write-FileUtf8 -Path $cfgPath -Content $json
 }
 
+# Проверка наличия и авторизации gh CLI.
+# Нужна перед repo-push / repo-pull.
 function Assert-GhCli {
     $gh = Get-Command gh -ErrorAction SilentlyContinue
     if (-not $gh) {
@@ -130,9 +171,13 @@ function Assert-GhCli {
     }
 }
 
+# Сводка различий файла до и после распаковки.
+# Считает добавленные/удалённые строки (по содержимому, не по позиции)
+# и изменение размера в байтах. Используется в down для отчёта.
 function Get-FileDiffSummary {
     param([string]$Path, [string]$NewContent)
 
+    # Файла нет — это новый файл.
     if (-not (Test-Path $Path)) {
         return "новый файл ($($NewContent.Length) симв.)"
     }
@@ -144,6 +189,8 @@ function Get-FileDiffSummary {
         return "старый файл не читается, перезаписан"
     }
 
+    # Разбиваем на строки. Сравниваем как мультимножества: важен
+    # не порядок, а сколько раз какая строка встречается.
     $oldLines = @($oldContent -split "`r?`n")
     $newLines = @($NewContent -split "`r?`n")
 
@@ -152,11 +199,14 @@ function Get-FileDiffSummary {
     $newSet = @{}
     foreach ($l in $newLines) { $newSet[$l] = ($newSet[$l] + 1) }
 
+    # Считаем добавленные строки: те, что в новом встречаются чаще.
     $added = 0
     foreach ($k in $newSet.Keys) {
         $oldCount = if ($oldSet.ContainsKey($k)) { $oldSet[$k] } else { 0 }
         if ($newSet[$k] -gt $oldCount) { $added += ($newSet[$k] - $oldCount) }
     }
+
+    # Считаем удалённые строки: те, что в старом встречались чаще.
     $removed = 0
     foreach ($k in $oldSet.Keys) {
         $newCount = if ($newSet.ContainsKey($k)) { $newSet[$k] } else { 0 }
@@ -171,6 +221,13 @@ function Get-FileDiffSummary {
 
 # =====================================================================
 #  КОМАНДА: status
+#  Показывает состояние AI-папки:
+#    - ключевые файлы (есть / нет, размер, дата);
+#    - папки данных (chats, patches, dumps, _repo, _transfer, logs);
+#    - репозиторий и число файлов из config.json;
+#    - статистика по патчам и чатам;
+#    - последние zip-пакеты в _transfer.
+#  Ничего не пишет на диск (кроме лога).
 # =====================================================================
 function Invoke-Status {
     Show-Header "СОСТОЯНИЕ AI-ПАПКИ"
@@ -184,11 +241,14 @@ function Invoke-Status {
     Write-Host "Корень: $rootResolved" -ForegroundColor Gray
     Write-Host ""
 
+    # Список ключевых файлов. AI_MAP.md добавлен, чтобы status
+    # показывал карту проекта наравне с остальными.
     $keyFiles = @(
         'ai_context.ps1',
         'config.json',
         'AI_CONTEXT.md',
         'AI_TASKS.md',
+        'AI_MAP.md',
         '_END_OF_SESSION_PROMPT.txt',
         'sanitize_for_repo.ps1',
         'sanitize_patterns.json'
@@ -206,6 +266,9 @@ function Invoke-Status {
     }
     Write-Host ""
 
+    # Папки данных: chats (резюме сессий), patches (правки),
+    # dumps (оригинальные дампы), _repo (копии из репозитория),
+    # _transfer (готовые zip), logs (журнал).
     Write-Host "-- Папки данных --" -ForegroundColor Yellow
     foreach ($d in 'chats','patches','dumps','_repo','_transfer','logs') {
         $path = Join-Path $Root $d
@@ -218,6 +281,7 @@ function Invoke-Status {
     }
     Write-Host ""
 
+    # Блок репозитория — читается из config.json.
     $cfgPath = Join-Path $Root 'config.json'
     if (Test-Path $cfgPath) {
         try {
@@ -239,6 +303,7 @@ function Invoke-Status {
         }
     }
 
+    # Статистика по патчам: сколько всего .md и когда последний.
     $patchesDir = Join-Path $Root 'patches'
     $patchesCount = 0
     $patchesLast = $null
@@ -256,6 +321,7 @@ function Invoke-Status {
     }
     Write-Host ""
 
+    # Статистика по чатам: сколько всего .md и когда последний.
     $chatsDir = Join-Path $Root 'chats'
     $chatsCount = 0
     $chatsLast = $null
@@ -273,6 +339,7 @@ function Invoke-Status {
     }
     Write-Host ""
 
+    # Последние zip-пакеты в _transfer (до 3 штук).
     $transferDir = Join-Path $Root '_transfer'
     if (Test-Path $transferDir) {
         $zips = @(Get-ChildItem $transferDir -Filter *.zip -ErrorAction SilentlyContinue |
@@ -294,6 +361,16 @@ function Invoke-Status {
 
 # =====================================================================
 #  КОМАНДА: zip
+#  Собирает zip-пакет для следующей сессии.
+#  Состав пакета:
+#    1. AI_CONTEXT.md          (контекст и история)
+#    2. AI_TASKS.md            (чек-лист задач)
+#    3. AI_MAP.md              (карта проекта)      <- [FIX]
+#    4. до LastPatches патчей  (patches\*.md)
+#    5. до LastChats чатов     (chats\*.md)
+#  Пакет кладётся в _transfer\ai_package_<stamp>.zip.
+#  Сборка идёт через временную папку %TEMP%\ai_pack_<stamp>,
+#  чтобы Compress-Archive не тянул лишние пути.
 # =====================================================================
 function Invoke-Zip {
     Show-Header "СБОРКА ПАКЕТА ДЛЯ НОВОЙ СЕССИИ"
@@ -307,14 +384,19 @@ function Invoke-Zip {
     $outDir = Join-Path $Root "_transfer"
     $zip    = Join-Path $outDir "ai_package_$stamp.zip"
 
+    # Готовим выходную папку и чистим возможный старый zip с тем же именем.
     Ensure-Dir $outDir
     if (Test-Path $zip) { Remove-Item $zip -Force }
 
+    # Временная папка сборки. Чистится после упаковки.
     $tmp = Join-Path $env:TEMP "ai_pack_$stamp"
     if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
     Ensure-Dir $tmp
 
-    foreach ($f in 'AI_CONTEXT.md','AI_TASKS.md') {
+    # Шаг 1: статичные файлы контекста.
+    # [FIX] добавлен AI_MAP.md — карта проекта должна попадать
+    #       в zip для новой сессии наравне с контекстом и чек-листом.
+    foreach ($f in 'AI_CONTEXT.md','AI_TASKS.md','AI_MAP.md') {
         $src = Join-Path $Root $f
         if (Test-Path $src) {
             Copy-Item $src -Destination $tmp -Force
@@ -324,6 +406,7 @@ function Invoke-Zip {
         }
     }
 
+    # Шаг 2: патчи. Берём не больше LastPatches, самые свежие.
     $patchesDir = Join-Path $Root 'patches'
     Ensure-Dir (Join-Path $tmp 'patches')
     if (Test-Path $patchesDir) {
@@ -336,6 +419,7 @@ function Invoke-Zip {
         Write-Host "[OK] + patches: $($patches.Count) файлов" -ForegroundColor Green
     }
 
+    # Шаг 3: чаты. Берём не больше LastChats, самые свежие.
     $chatsDir = Join-Path $Root 'chats'
     Ensure-Dir (Join-Path $tmp 'chats')
     if (Test-Path $chatsDir) {
@@ -348,6 +432,7 @@ function Invoke-Zip {
         Write-Host "[OK] + chats: $($chats.Count) файлов" -ForegroundColor Green
     }
 
+    # Упаковка и уборка временной папки.
     Compress-Archive -Path (Join-Path $tmp '*') -DestinationPath $zip -Force
     Remove-Item $tmp -Recurse -Force
 
@@ -361,18 +446,31 @@ function Invoke-Zip {
 
 # =====================================================================
 #  КОМАНДА: down
-#  Распаковывает ответ ИИ из буфера в файлы.
-#  Маркеры пакета читаются из config.json (секция package).
+#  Распаковывает ответ ИИ из буфера обмена в файлы.
 #
-#  FIX (T-006): добавлена защита от сломанных пакетов:
+#  КЛЮЧЕВОЕ: маркеры пакета читаются из config.json (секция package),
+#  а не из кода. Так формат пакета можно менять в одном месте,
+#  не трогая скрипт.
+#
+#  ЗАЩИТНЫЕ МЕХАНИЗМЫ (см. FIX T-006):
+#    - проверка наличия START и END маркеров; при отсутствии
+#      спрашивает подтверждение y/N;
 #    - проверка парности BEGIN-FILE и END-FILE во всём буфере;
-#    - отказ от блока, если внутри его тела встретился маркер
-#      BEGIN-FILE (верный признак обрезки).
+#      при несовпадении — предупреждение и запрос y/N;
+#    - отказ от конкретного блока, если внутри его тела встретился
+#      маркер BEGIN-FILE (верный признак обрезки);
+#    - проверка path traversal: путь обязан начинаться с корня;
+#    - Repair-PathForRoot: попытка восстановить потерянный
+#      разделитель пути (например, AI_test.md -> AI\_test.md);
+#    - DryRun: показать план без записи;
+#    - сводка по каждому файлу: сколько строк добавилось/удалилось.
 # =====================================================================
 function Invoke-Down {
     Show-Header "РАСПАКОВКА ПАКЕТА ИЗ БУФЕРА"
 
     # --- 1. Читаем маркеры из config.json ---
+    # Если config.json недоступен — работать нельзя: нечем
+    # разбирать буфер.
     $cfg = $null
     try {
         $cfg = Get-Config -RootPath $Root
@@ -392,6 +490,7 @@ function Invoke-Down {
     $endFileMarker = $pkg.end_file_marker
     $endMarker     = $pkg.end_marker
 
+    # Все четыре маркера обязательны. Любой пустой — стоп.
     if ([string]::IsNullOrWhiteSpace($startMarker) -or
         [string]::IsNullOrWhiteSpace($beginMarker) -or
         [string]::IsNullOrWhiteSpace($endFileMarker) -or
@@ -401,6 +500,8 @@ function Invoke-Down {
     }
 
     # --- 2. Читаем буфер ---
+    # Get-Clipboard -Raw возвращает весь текст как одну строку,
+    # сохраняя \r\n внутри. Это критично для регулярки ниже.
     try {
         $text = Get-Clipboard -Raw
     } catch {
@@ -418,6 +519,8 @@ function Invoke-Down {
     Write-Host "[INFO] Прочитано из буфера: $($text.Length) символов" -ForegroundColor Cyan
 
     # --- 3. Проверяем START и END маркеры ---
+    # Если хотя бы одного нет — спрашиваем пользователя,
+    # продолжать ли. Это защита от частично скопированного пакета.
     $hasStart = $text.Contains($startMarker)
     $hasEnd   = $text.Contains($endMarker)
 
@@ -445,6 +548,9 @@ function Invoke-Down {
     }
 
     # --- 4. FIX (T-006): Проверка парности BEGIN и END во всём буфере ---
+    # Если количество BEGIN-FILE и END-FILE не совпадает, значит
+    # какой-то блок обрезан. Это типичный симптом обрыва пакета
+    # при копировании. Требуем подтверждения.
     $beginCount = ([regex]::Matches($text, [regex]::Escape($beginMarker))).Count
     $endCount   = ([regex]::Matches($text, [regex]::Escape($endFileMarker))).Count
 
@@ -467,6 +573,12 @@ function Invoke-Down {
     }
 
     # --- 5. Разбираем блоки BEGIN-FILE ... END-FILE ---
+    # Регулярка с (?ms):
+    #   m — ^ и $ работают построчно;
+    #   s — точка матчит \n (для многострочного тела).
+    # Обратная ссылка \k<path> требует, чтобы путь в END-FILE
+    # совпадал с путём в BEGIN-FILE. Несовпадающий блок
+    # просто не будет найден.
     $escBegin = [regex]::Escape($beginMarker)
     $escEnd   = [regex]::Escape($endFileMarker)
 
@@ -486,6 +598,8 @@ function Invoke-Down {
     Write-Host ""
 
     # --- 6. Обрабатываем каждый блок ---
+    # rootFull / rootPrefix — граница безопасности: любой путь
+    # за пределами корня отбрасывается (path traversal guard).
     $rootFull   = (Resolve-Path -LiteralPath $Root).Path
     $rootPrefix = $rootFull + [System.IO.Path]::DirectorySeparatorChar
 
@@ -502,6 +616,7 @@ function Invoke-Down {
         # --- 6.1. FIX (T-006): Проверка тела на наличие маркера BEGIN-FILE ---
         # Если внутри тела встретился BEGIN-FILE (с другим путём) — это
         # верный признак обрезки файла или сломанного пакета.
+        # Такой блок не сохраняем — иначе получим мусорный файл.
         if ($body -match ('(?m)^' + $escBegin + '[ \t]')) {
             Write-Host "[BROKEN] В теле файла найден маркер BEGIN-FILE — пропуск:" -ForegroundColor Red
             Write-Host "         $rawPath" -ForegroundColor Red
@@ -511,12 +626,15 @@ function Invoke-Down {
         }
 
         # --- 6.2. Нормализация пути ---
+        # Относительные пути считаем от корня.
         $candidatePath = $rawPath
         if (-not [System.IO.Path]::IsPathRooted($candidatePath)) {
             $candidatePath = Join-Path $Root $candidatePath
         }
 
         # --- 6.3. Проверка и восстановление пути ---
+        # Сначала пробуем как есть. Если путь вне корня —
+        # пытаемся восстановить через Repair-PathForRoot.
         try {
             $fullPath = [System.IO.Path]::GetFullPath($candidatePath)
         } catch {
@@ -532,17 +650,20 @@ function Invoke-Down {
         }
 
         # --- 6.4. Финальная проверка пути ---
+        # Если после всех попыток путь вне корня — пропускаем.
         if (-not $fullPath.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
             Write-Host "[ERR] ПУТЬ ВНЕ КОРНЯ — пропуск: $fullPath" -ForegroundColor Red
             $skipped++
             continue
         }
 
+        # DryRun: показать, что было бы сохранено, и не писать.
         if ($DryRun) {
             Write-Host "[DRY] $fullPath ($($body.Length) симв.)" -ForegroundColor DarkGray
             continue
         }
 
+        # Считаем diff ДО записи — нужен старый файл.
         $diffSummary = Get-FileDiffSummary -Path $fullPath -NewContent $body
 
         try {
@@ -582,6 +703,15 @@ function Invoke-Down {
 #  ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: Repair-PathForRoot
 #  Восстанавливает путь, если потерян разделитель (например,
 #  'AI_test.md' вместо 'AI\_test.md').
+#
+#  Три попытки, по порядку:
+#    1. Родительская папка $dir уже внутри корня — просто склеиваем.
+#    2. Имя листа содержит '_': пробуем вставить '\' перед '_'
+#       в разных вариантах.
+#    3. Ищем ближайшую существующую родительскую папку и
+#       присоединяем к ней лист.
+#
+#  Возвращает полный путь или $null, если не удалось.
 # =====================================================================
 function Repair-PathForRoot {
     param(
@@ -589,6 +719,7 @@ function Repair-PathForRoot {
         [string]$RootPath
     )
 
+    # Единый стиль разделителей — Windows-обратный слеш.
     $norm = $BrokenPath -replace '/', '\'
     $leaf = Split-Path -Leaf $norm
     $dir  = Split-Path -Parent $norm
@@ -607,6 +738,9 @@ function Repair-PathForRoot {
     }
 
     # Вариант 2: пробуем вставить разделитель перед символом '_'.
+    # Пример: leaf = "_test.md" -> parent = "AI", sep = "_",
+    # rest = "test.md". Тогда строим кандидатов вида
+    # dir + "\_test.md" или dir + "\AI\_test.md".
     if ($leaf -match '^(?<parent>.+?)(?<sep>_)(?<rest>.+)$') {
         $parentPart = $Matches['parent']
         $sepPart    = $Matches['sep']
@@ -630,6 +764,9 @@ function Repair-PathForRoot {
     }
 
     # Вариант 3: ищем существующую родительскую папку.
+    # Идём по частям пути справа налево, на каждой итерации
+    # проверяем, существует ли такая папка. Первая найденная
+    # (ближайшая) — берём как родителя.
     if ($dir) {
         $parts = $dir -split '\\'
         for ($i = $parts.Length - 1; $i -ge 1; $i--) {
@@ -645,11 +782,21 @@ function Repair-PathForRoot {
         }
     }
 
+    # Не удалось восстановить — возвращаем $null.
     return $null
 }
 
 # =====================================================================
 #  КОМАНДА: repo-push
+#  Заливает ВСЕ файлы из config.json -> files в GitHub.
+#  Для каждого файла:
+#    1. Получить текущий SHA через gh api GET.
+#    2. Прочитать локальный файл, закодировать в base64.
+#    3. PUT через gh api с payload {message, content, branch, sha}.
+#  SHA нужен для обновления существующего файла; для нового —
+#  не передаётся. Payload пишется во временный JSON (UTF-8 без BOM),
+#  чтобы не спотыкаться на экранировании.
+#  Параметр -DryRun: показать список файлов и выйти без PUT.
 # =====================================================================
 function Invoke-RepoPush {
     Show-Header "ОБНОВЛЕНИЕ GITHUB-РЕПОЗИТОРИЯ"
@@ -674,6 +821,8 @@ function Invoke-RepoPush {
     Write-Host ("[INFO] Репозиторий: {0}/{1} (branch: {2})" -f $owner, $repo, $branch) -ForegroundColor Cyan
     Write-Host ""
 
+    # Сначала проверяем наличие всех файлов. Если чего-то нет —
+    # лучше упасть сразу, чем залить половину.
     $missing = @()
     foreach ($item in $cfg.files) {
         $localPath = $item.local
@@ -702,6 +851,8 @@ function Invoke-RepoPush {
     Write-Host ""
     Write-Host "[INFO] Загружаю файлы в репозиторий..." -ForegroundColor Cyan
 
+    # gh api возвращает ненулевой код при ошибке. Мы хотим
+    # продолжать по остальным файлам, поэтому локально отключаем Stop.
     $savedEAP = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
 
@@ -710,6 +861,7 @@ function Invoke-RepoPush {
             $name      = $item.name
             $localPath = if ($item.local) { $item.local } else { Join-Path $Root $name }
 
+            # Получаем текущий SHA (нужен для обновления существующего файла).
             $sha = $null
             $shaOut = & {
                 gh api "repos/$owner/$repo/contents/$name`?ref=$branch" --jq '.sha' 2>&1
@@ -718,9 +870,11 @@ function Invoke-RepoPush {
                 $sha = $shaOut.Trim()
             }
 
+            # Кодируем содержимое файла в base64 для GitHub API.
             $bytes = [System.IO.File]::ReadAllBytes($localPath)
             $b64 = [Convert]::ToBase64String($bytes)
 
+            # Собираем payload. sha включаем только если он валиден.
             $payload = @{
                 message = "Update $name"
                 content = $b64
@@ -734,6 +888,8 @@ function Invoke-RepoPush {
 
             Write-Host ("  → {0}" -f $name) -ForegroundColor Gray
 
+            # Payload передаём через временный файл: так надёжнее,
+            # чем через --field / --raw-field (не надо экранировать).
             $tmpJson = [System.IO.Path]::GetTempFileName()
             try {
                 [System.IO.File]::WriteAllText($tmpJson, $payloadJson, (New-Object System.Text.UTF8Encoding($false)))
@@ -757,6 +913,7 @@ function Invoke-RepoPush {
         Write-Host ("     URL: {0}" -f $cfg.repo_url) -ForegroundColor Cyan
         Write-AiLog "[repo-push] $owner/$repo files=$($cfg.files.Count)"
     } finally {
+        # Возвращаем исходный ErrorActionPreference.
         $ErrorActionPreference = $savedEAP
     }
 
@@ -766,6 +923,9 @@ function Invoke-RepoPush {
 
 # =====================================================================
 #  КОМАНДА: repo-pull
+#  Скачивает все файлы из config.json -> files в локальную папку _repo.
+#  Для каждого файла: gh api GET -> .content (base64) -> декодировать
+#  -> записать байты. Ничего не коммитит.
 # =====================================================================
 function Invoke-RepoPull {
     Show-Header "СКАЧИВАНИЕ ИЗ РЕПОЗИТОРИЯ"
@@ -793,6 +953,8 @@ function Invoke-RepoPull {
     Write-Host ("[INFO] Репозиторий: {0}/{1} (branch: {2})" -f $owner, $repo, $branch) -ForegroundColor Cyan
     Write-Host ""
 
+    # Как и в repo-push, локально отключаем Stop, чтобы не падать
+    # на первом же неудачном файле.
     $savedEAP = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
 
@@ -802,6 +964,7 @@ function Invoke-RepoPull {
             Write-Host ("  ← {0}" -f $name) -ForegroundColor Gray
             $dest = Join-Path $repoDir $name
 
+            # Скачиваем base64-строку содержимого.
             $content = & {
                 gh api "repos/$owner/$repo/contents/$name`?ref=$branch" --jq '.content' 2>&1
             } | Out-String
@@ -811,6 +974,7 @@ function Invoke-RepoPull {
                 continue
             }
 
+            # GitHub отдаёт base64 с переносами строк — убираем их.
             $b64 = $content.Trim() -replace "`r", "" -replace "`n", ""
             try {
                 $bytes = [Convert]::FromBase64String($b64)
@@ -831,6 +995,11 @@ function Invoke-RepoPull {
 
 # =====================================================================
 #  КОМАНДА: session-close
+#  Одна команда для закрытия сессии:
+#    1. down — распаковать ответ ИИ из буфера (пакет переноса).
+#    2. zip  — собрать zip для следующей сессии.
+#    3. repo-push — залить обновлённые файлы контекста в GitHub.
+#  Шаги выполняются последовательно, каждый печатает свой header.
 # =====================================================================
 function Invoke-SessionClose {
     Show-Header "ЗАКРЫТИЕ СЕССИИ"
@@ -854,6 +1023,7 @@ function Invoke-SessionClose {
 
 # =====================================================================
 #  КОМАНДА: help
+#  Печатает справку по командам и параметрам.
 # =====================================================================
 function Invoke-Help {
     Show-Header "AI CONTEXT — УПРАВЛЯЮЩИЙ ЦЕНТР"
@@ -884,6 +1054,10 @@ function Invoke-Help {
 
 # =====================================================================
 #  ДИСПЕТЧЕР
+#  Простая маршрутизация: имя команды -> вызов функции.
+#  Пустая строка или 'help' -> справка.
+#  Неизвестное значение -> справка (ValidateSet не пропустит,
+#  но default оставлен для страховки).
 # =====================================================================
 switch ($Command) {
     'zip'            { Invoke-Zip }
