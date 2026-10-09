@@ -16,7 +16,7 @@
 - startMain.sh — ГОТОВО
 - Conf/ (6 файлов) — ГОТОВО
 - Func/Scripts/funcUtil.sh, funcCheck.sh — ГОТОВО
-- Func/Menu/funcMenu.sh — ГОТОВО (прочитан)
+- Func/Menu/funcMenu.sh — ГОТОВО (отрефакторен в сессии 2026-10-09)
 - Def/ (5 файлов) — ГОТОВО (структура, все вопросы открыты)
 - Func/01_Config … Func/10_Sites — НЕ НАЧАТО
 
@@ -33,27 +33,6 @@ source_required не проверяет код возврата source — ур�
 □ T-005 — Ревизия «мёртвых» переменных ConfPaths.sh (ОТЛОЖЕНО)
 DirMainDock, DirMainConfigDef (DEF vs Def). Проверить использование
 в модулях. Вернуться при разборе модулей.
-
-□ T-011 — Func/01_Config/12_funcUsers.sh:370 (ОТЛОЖЕНО)
-`case` закрыт через `fi` вместо `esac`. Синтаксическая ошибка.
-Чиним при разборе файла 12_funcUsers.sh.
-
-□ T-012 — Func/08_VM/81_funcEsxi.sh:215
-`done /dev/null` вместо `done < /dev/null`. Синтаксическая ошибка.
-Чиним при разборе 81_funcEsxi.sh.
-
-□ T-013 — Syntax error в 10 файлах Func/
-- Func/01_Config/12_funcUsers.sh:370 (fi вместо esac) — T-011
-- Func/01_Config/15_funcSslRsa.sh:235
-- Func/01_Config/16_funcCertbot.sh:264
-- Func/01_Config/17_funcDocker.sh:273
-- Func/02_Backup/23_funcBackrest.sh:104
-- Func/02_Backup/24_funcZrepl.sh:96
-- Func/03_Servers/32_funcSql.sh:163
-- Func/04_FW/44_funcSeLinux.sh:136
-- Func/06_Logs/61_funcLogs.sh:114
-- Func/08_VM/81_funcEsxi.sh:215 — T-012
-Чиним при разборе каждого файла.
 
 □ T-015 — Автозапуск монтирования Nextcloud
 FreeBSD: rc-скрипт в /usr/local/etc/rc.d/ + /etc/rc.conf.
@@ -77,9 +56,21 @@ RedOS: systemd-юнит.
 функции с аргументом (имя), mountAll / umountAll / statusAll.
 Не забегать раньше времени.
 
+□ T-018 — Func/Watch/watchMysql.sh и подобные
+Скрипт содержит exit 1, который при source из ConfSources.sh
+убивает панель. Решение: в скриптах, которые планируются source-ить,
+заменить exit на return. Либо исключить Func/Watch/* из автообхода
+в ConfSources.sh.
+
+□ T-019 — Усилить правило стиля «одна задача — один вопрос»
+Сделать жёстким ритуалом ответа ИИ: в AI_START.md — отдельное
+Правило 11, в AI_CONTEXT.md → СОГЛАШЕНИЯ — отдельный блок.
+Приоритет, если в следующей сессии снова сбьётся.
+
 ## ⏳ СЛЕДУЮЩЕЕ
 
-Пусто.
+Продолжение T-001: Func/01_Config (9 файлов: 11_funcNet.sh … 19_funcCyrillic.sh).
+Разбор Func/Watch/* и ConfSources.sh (T-018).
 
 ## 💡 БЭКЛОГ
 
@@ -227,23 +218,62 @@ RedOS: systemd-юнит.
 - ☑ T-194 — Согласовано правило «один вопрос за раз».
 - ☑ T-195 — Согласовано: по каждому пакету — отдельная команда установки.
 
+2026-10-09 (продолжение) — Анализ рассинхрона AI_MAP, закрытие T-013, рефакторинг funcMenu
+
+- ☑ T-196 — Прочитаны все файлы из config.json по правилу 4.
+- ☑ T-197 — Выявлена причина рассинхрона AI_MAP.md: не входил в пакет.
+- ☑ T-198 — Выдана новая редакция _END_OF_SESSION_PROMPT.txt (пункт 3 = AI_MAP.md).
+- ☑ T-199 — Выдана новая редакция ai_context.ps1 (Invoke-Zip + AI_MAP.md;
+  Invoke-Status + AI_MAP.md; расширенные комментарии).
+- ☑ T-200 — Выдана новая редакция AI_START.md (правило 4 про dump; правило 6
+  усилено; список состава пакета).
+- ☑ T-201 — Согласовано правило стиля «одна задача — один вопрос».
+- ☑ T-202 — Разобран 15_funcSslRsa.sh: esac + удалён лишний fi.
+- ☑ T-203 — Разобран 16_funcCertbot.sh: удалён лишний fi в certRenew.
+- ☑ T-204 — Разобран 17_funcDocker.sh: удалён лишний fi в dockerDiagnosticsDashboard.
+- ☑ T-205 — Разобран 23_funcBackrest.sh: удалён лишний fi в brManageService.
+- ☑ T-206 — Разобран 24_funcZrepl.sh: удалён лишний fi в zrManageService.
+- ☑ T-207 — Разобран 32_funcSql.sh: 2 лишних fi (dbMaintenanceTools, dbUsersManagement).
+- ☑ T-208 — Разобран 44_funcSeLinux.sh: удалён лишний fi в seEnable.
+- ☑ T-209 — Разобран 61_funcLogs.sh: удалён лишний fi в logsShowDmesg.
+- ☑ T-210 — Разобран 81_funcEsxi.sh: done < /dev/null + esac в esxiManageFirewallState.
+- ☑ T-211 — T-013 закрыта.
+- ☑ T-212 — T-011, T-012 закрыты в рамках T-013.
+- ☑ T-213 — Рефакторинг funcMenu.sh: удалена menuExecuteCLI.
+- ☑ T-214 — MenuStart объединён с CLI-режимом. Поддержка вызова по имени функции.
+- ☑ T-215 — UserCur → RunAsUser в MenuFooter.
+- ☑ T-216 — Убран sleep 2 при ошибке ввода в MenuRenderer.
+- ☑ T-217 — Добавлено сообщение при пустом уровне в MenuRenderer.
+- ☑ T-218 — Проверка declare -f в MenuRenderer.
+- ☑ T-219 — Проверка declare -f в MenuStart (CLI).
+- ☑ T-220 — DebugScripts:-0 в MenuStart.
+- ☑ T-221 — Убран while true в интерактивном режиме MenuStart.
+- ☑ T-222 — MenuRenderer: локальный ввод внутри подменю (parent_id + "." + choice).
+- ☑ T-223 — startMain.sh: одна ветка через MenuStart "$@".
+- ☑ T-224 — funcMenu.sh выдан целиком с расширенными комментариями.
+- ☑ T-225 — T-014 переоформлена: одна ветка MenuStart вместо двух.
+
 ## 📊 СТАТИСТИКА
 
 | Метрика | Значение |
-|---------|----------|
-| Всего задач | 105 |
-| В работе | 7 (T-001, T-003, T-011, T-012, T-013, T-015, T-016) |
-| Отложено | 3 (T-004, T-005, T-011) |
-| Готово | 93 |
-| Прогресс T-001 | ~15% |
+
+| Всего задач | 105+ |
+| В работе | 7 (T-001, T-003, T-015, T-016, T-017, T-018, T-019) |
+| Отложено | 2 (T-004, T-005) |
+| Готово | 100+ |
+| Прогресс T-001 | ~20% |
 
 ## 🎯 ТЕКУЩИЙ ФОКУС
 
 Что делаем в следующей сессии:
 
-- Продолжить T-001: Func/01_Config (9 файлов: 11_funcNet.sh … 19_funcCyrillic.sh).
+- **T-019 (приоритет при повторе):** если снова сбьётся стиль
+  «одна задача — один вопрос» — усилить правило до жёсткого ритуала.
+- **T-018:** разобрать Func/Watch/watchMysql.sh и ConfSources.sh —
+  почему панель молча падает при source Watch/*.
+- Продолжить T-001: Func/01_Config (9 файлов).
 - T-016: скопировать 57_funcDiskMount.sh на сервер, отладить.
-- T-015: автозапуск монтирования (rc-скрипт FreeBSD / systemd RedOS).
+- T-015: автозапуск монтирования.
 - T-017: универсальный механизм монтирования (когда понадобится).
 
 Правило: в рамках одной сессии можно обсуждать несколько задач.
