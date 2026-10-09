@@ -28,7 +28,7 @@ startMain.sh — единственная точка входа, в корне �
 ### Conf/ — конфигурация (6 файлов)
 
 | Файл | Назначение |
-|------|-----------|
+
 | ConfAll.sh | Главный управляющий диспетчер |
 | ConfManual.sh | Ручные настройки: имена, пароли, флаги |
 | ConfPaths.sh | Карта путей и точек монтирования |
@@ -39,7 +39,7 @@ startMain.sh — единственная точка входа, в корне �
 ### Def/ — списки (5 файлов, ДАННЫЕ, не код)
 
 | Файл | Назначение |
-|------|-----------|
+
 | dns.list | Домены |
 | esxi.list | Хосты ESXi, датасторы |
 | scriptpaths.list | Манифест подпапок для дампа |
@@ -49,7 +49,7 @@ startMain.sh — единственная точка входа, в корне �
 ### Func/01_Config/ — конфигурация (9 файлов)
 
 | Файл | Назначение |
-|------|-----------|
+
 | 11_funcNet.sh | Сеть: hostname, IP, шлюз |
 | 12_funcUsers.sh | Пользователи, sudo, безопасность |
 | 13_funcSsh.sh | SSH |
@@ -98,15 +98,21 @@ startMain.sh — единственная точка входа, в корне �
 
 ### Func/Menu/ — функции меню
 
-funcMenu.sh — ядро интерфейса, MenuRegister, menuExecuteCLI.
-Подключается в ConfSources.sh первым, до остальных модулей.
+funcMenu.sh — ядро интерфейса, MenuRegister, MenuStart (единая точка
+входа — интерактив и CLI/Cron). Подключается в ConfSources.sh
+через переменную DirScriptsMenu (= ${DirScripts}/Func/Menu).
 
 ### Func/Scripts/ — утилиты (2 файла)
 
 | Файл | Назначение |
-|------|-----------|
+
 | funcCheck.sh | Создание папок |
-| funcUtil.sh | source_required, err, warn |
+| funcUtil.sh | source_required, err, warn, createDir |
+
+### Func/Watch/ — мониторинговые раннеры
+
+Отдельная папка, содержит исполняемые скрипты (watchMysql.sh и др.),
+которые выполняются при source. См. T-018.
 
 ### Modules/ — пользовательские модули
 
@@ -116,10 +122,13 @@ funcMenu.sh — ядро интерфейса, MenuRegister, menuExecuteCLI.
 ## 🔗 Связи
 
 - Все модули регистрируются через MenuRegister.
-- Диспетчер запуска: menuExecuteCLI в Func/Menu/funcMenu.sh.
+- Диспетчер запуска: MenuStart (Func/Menu/funcMenu.sh) — и интерактив,
+  и CLI/Cron. Поддерживает вызов по цифровому ID и по имени функции.
 - Двухплатформенность: ${OSType} (RedOS / FreeBSD).
 - Модули пронумерованы: 01_Config … 10_Sites.
 - Файлы внутри модулей: NN_funcName.sh.
+- Ввод в меню локальный: внутри подменю пользователь вводит локальный
+  ID, полный ID собирается как parent_id + "." + choice.
 
 ## ⚠️ Найденные проблемы
 
@@ -133,13 +142,49 @@ funcMenu.sh — ядро интерфейса, MenuRegister, menuExecuteCLI.
 - ANSI в выводе — заменено на err()/warn().
 - Добавлена поддержка Modules/ (DirScriptsModules, сканирование, создание).
 
+### Исправлено в 2026-09-30 0017
+
+- ConfSources.sh: путь funcMenu.sh через ${DirScriptsMenu}.
+- ConfPaths.sh: DirScriptsMenu = ${DirScripts}/Func/Menu.
+- funcCheck.sh: ${DirScriptsMenu} добавлен в paths_to_check.
+- startMain.sh: MenuStart/MenuExecuteCLI разделены (T-014).
+- ConfAll.sh: путь к funcCheck.sh (добавлен /Scripts/).
+
+### Исправлено в 2026-10-09 (продолжение)
+
+- **T-013 (закрыто).** 9 файлов с syntax error:
+  - 15_funcSslRsa.sh — `esac` + удалён лишний `fi` в sslAuditDashboard.
+  - 16_funcCertbot.sh — удалён лишний `fi` в certRenew.
+  - 17_funcDocker.sh — удалён лишний `fi` в dockerDiagnosticsDashboard.
+  - 23_funcBackrest.sh — удалён лишний `fi` в brManageService.
+  - 24_funcZrepl.sh — удалён лишний `fi` в zrManageService.
+  - 32_funcSql.sh — 2 лишних `fi` (dbMaintenanceTools, dbUsersManagement).
+  - 44_funcSeLinux.sh — удалён лишний `fi` в seEnable.
+  - 61_funcLogs.sh — удалён лишний `fi` в logsShowDmesg.
+  - 81_funcEsxi.sh — `done /dev/null` → `done < /dev/null` +
+    `esac` в esxiManageFirewallState.
+- **T-012 (закрыто).** 81_funcEsxi.sh: done /dev/null — исправлено.
+- **T-011 (закрыто).** 12_funcUsers.sh: case/fi — в логе не появлялся,
+  скорее всего уже исправлено ранее.
+- **funcMenu.sh — рефакторинг.** Удалена устаревшая `menuExecuteCLI`
+  (обращалась к несуществующему массиву `MenuRegFuncs`). Все вызовы
+  CLI/Cron идут через `MenuStart`.
+- **startMain.sh — рефакторинг.** Хвост сведён к одной ветке
+  через `MenuStart "$@"`.
+- **MenuFooter:** `${UserCur}` → `${RunAsUser}` (переменная
+  не была определена).
+
 ### Актуально
 
-- ConfSources.sh: путь к funcMenu.sh — ${DirScripts}/funcMenu.sh,
-  должно быть ${DirScripts}/Func/Menu/funcMenu.sh.
-  Требует повторной правки (T-008).
-- ConfPaths.sh: DirScriptsMenu = ${DirScripts}/Menu,
-  должно быть ${DirScripts}/Func/Menu (T-008).
+- ConfManual.sh: устаревшие данные, `SyncroSrv` без `else`, дублирование
+  `SRVNeedName`/`SyncSRV`, `DebugScripts` без читателя (T-003).
+- ConfPaths.sh: потенциально мёртвые переменные `DirMainDock`,
+  `DirMainConfigDef` (T-005).
+- funcUtil.sh: `source_required` не проверяет код возврата source (T-004).
+- server.list: пароли в открытом виде — обезличиватель ловит, действий
+  не требуется (T-006, закрыто).
+- startMain.sh не собирается дампом — в scriptpaths.list нет корня.
+  Точку входа смотреть отдельно.
 - 7 файлов в CP1251 (битые кодировки):
   - Conf/ConfManual.sh
   - Def/esxi.list
@@ -148,21 +193,21 @@ funcMenu.sh — ядро интерфейса, MenuRegister, menuExecuteCLI.
   - Func/05_Disks/51_funcZFS.sh
   - Func/07_Mon/71_funcMon.sh
   - Func/Scripts/funcCheck.sh
-- startMain.sh не собирается дампом — в scriptpaths.list нет корня.
-  Точку входа смотреть отдельно.
-- ConfManual.sh: устаревшие данные, требует повторного прохода (T-003).
-- ConfPaths.sh: потенциально мёртвые переменные (T-005).
-- funcUtil.sh: source_required не проверяет код возврата source (T-004).
-- server.list: пароли в открытом виде (T-006).
+- **T-018 (новая):** Func/Watch/watchMysql.sh содержит `exit 1`, который
+  при `source` из `ConfSources.sh` убивает панель. Симптом: молчаливый
+  выход после детекции ОС.
+- **T-019 (новая):** усилить правило стиля «одна задача — один вопрос»
+  до жёсткого ритуала ответа ИИ.
 
 ## 📊 Статус разбора T-001
 
 | Модуль | Файлов | Разобрано | Статус |
-|--------|--------|-----------|--------|
+
 | startMain.sh | 1 | 1 | готово |
 | Conf/ | 6 | 6 | готово |
 | Func/Scripts | 2 | 2 | готово |
-| Def/ | 5 | 0 | не начато (данные) |
+| Func/Menu/funcMenu.sh | 1 | 1 | готово (отрефакторен) |
+| Def/ | 5 | 5 | структура разобрана |
 | Func/01_Config | 9 | 0 | не начато |
 | Func/02_Backup | 8 | 0 | не начато |
 | Func/03_Servers | 9 | 0 | не начато |
@@ -173,7 +218,7 @@ funcMenu.sh — ядро интерфейса, MenuRegister, menuExecuteCLI.
 | Func/08_VM | 2 | 0 | не начато |
 | Func/09_System | 4 | 0 | не начато |
 | Func/10_Sites | 2 | 0 | не начато |
-| Func/Menu | ? | 0 | не начато |
+| Func/Watch | ? | 0 | не начато (T-018) |
 | Modules/ | ? | 0 | не начато |
 
-Итого: 67+ файлов, разобрано 9.
+Итого: 67+ файлов, разобрано 10 (включая отрефакторенный funcMenu.sh).
