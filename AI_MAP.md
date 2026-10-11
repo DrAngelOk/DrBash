@@ -74,7 +74,7 @@ startMain.sh — единственная точка входа, в корне �
 
 ### Func/05_Disks/ — диски (5 файлов)
 
-51_funcZFS.sh, 52_funcZpool.sh, 53_funcGpart.sh, 54_funcFiles.sh, 58_funcDiskClone.sh.
+51_funcZFS.sh, 52_funcZpool.sh, 53_funcGpart.sh, 54_funcFiles.sh, **57_funcDiskMount.sh (отлажен 2026-10-11)**, 58_funcDiskClone.sh.
 
 ### Func/06_Logs/ — логи (3 файла)
 
@@ -114,6 +114,11 @@ funcMenu.sh — ядро интерфейса, MenuRegister, MenuStart (един
 Отдельная папка, содержит исполняемые скрипты (watchMysql.sh и др.),
 которые выполняются при source. См. T-018.
 
+### Sample/ — шаблоны для копирования
+
+Шаблоны конфигов и скриптов для развёртывания на целевые пути
+(например, rc-скрипт автозапуска Nextcloud).
+
 ### Modules/ — пользовательские модули
 
 Модули на основе функций. Автоподключаются в ConfSources.sh (ПУНКТ 3).
@@ -129,6 +134,11 @@ funcMenu.sh — ядро интерфейса, MenuRegister, MenuStart (един
 - Файлы внутри модулей: NN_funcName.sh.
 - Ввод в меню локальный: внутри подменю пользователь вводит локальный
   ID, полный ID собирается как parent_id + "." + choice.
+- **Единая точка входа:** любой запуск (интерактив, CLI, cron,
+  автозапуск через rc/systemd) — через `startMain.sh <ID>`.
+  Модули напрямую не вызываются.
+- **PATH-расширение:** только в `startMain.sh`. Не дублировать
+  в rc-скриптах / systemd-юнитах.
 
 ## ⚠️ Найденные проблемы
 
@@ -164,15 +174,38 @@ funcMenu.sh — ядро интерфейса, MenuRegister, MenuStart (един
   - 81_funcEsxi.sh — `done /dev/null` → `done < /dev/null` +
     `esac` в esxiManageFirewallState.
 - **T-012 (закрыто).** 81_funcEsxi.sh: done /dev/null — исправлено.
-- **T-011 (закрыто).** 12_funcUsers.sh: case/fi — в логе не появлялся,
-  скорее всего уже исправлено ранее.
-- **funcMenu.sh — рефакторинг.** Удалена устаревшая `menuExecuteCLI`
+- **T-011 (закрыто).** 12_funcUsers.sh: case/fi — в логе не появлялся.
+- **funcMenu.sh — рефакторинг.** Удалена `menuExecuteCLI`
   (обращалась к несуществующему массиву `MenuRegFuncs`). Все вызовы
   CLI/Cron идут через `MenuStart`.
 - **startMain.sh — рефакторинг.** Хвост сведён к одной ветке
   через `MenuStart "$@"`.
-- **MenuFooter:** `${UserCur}` → `${RunAsUser}` (переменная
-  не была определена).
+- **MenuFooter:** `${UserCur}` → `${RunAsUser}`.
+
+### Исправлено в 2026-10-11
+
+- **T-019 (закрыто).** Правило стиля «одна задача — один вопрос»
+  стало жёстким ритуалом:
+  - В `AI_START.md` — добавлено Правило 11.
+  - В `AI_CONTEXT.md` → «СОГЛАШЕНИЯ» — заменён старый мягкий блок
+    на жёсткий.
+  - В `AI_START.md` правило 4 дополнено перечнем файлов, которые
+    не читать при старте.
+- **T-016 (закрыто).** 57_funcDiskMount.sh отлажен:
+  - Заменены все `mountpoint -q` на хелпер `is_mounted()` (утилита
+    отсутствует на FreeBSD 15.1).
+  - Добавлены fallback-функции `info`/`warn`/`err`/`createDir`.
+  - Комментарии к каждой переменной в блоке конфигурации.
+  - Схема URL по порту (80 → http, остальное → https).
+  - Убрана проверка `$?` после `url=$(ncMountBuildUrl)`.
+- **T-015 (FreeBSD, закрыто).** Автозапуск монтирования:
+  - Шаблон: `Sample/BSD/usr/local/etc/rc.d/nextcloud_scripts`.
+  - Целевой путь: `/usr/local/etc/rc.d/nextcloud_scripts`.
+  - `installNextcloudMountDeps` разворачивает rc-скрипт и включает
+    автозапуск в `/etc/rc.conf`.
+  - Автозапуск проверен на reboot — работает.
+- **_END_OF_SESSION_PROMPT.txt** — выдана новая редакция с пунктом 3
+  (AI_MAP.md) и восстановленными эмодзи.
 
 ### Актуально
 
@@ -195,9 +228,12 @@ funcMenu.sh — ядро интерфейса, MenuRegister, MenuStart (един
   - Func/Scripts/funcCheck.sh
 - **T-018 (новая):** Func/Watch/watchMysql.sh содержит `exit 1`, который
   при `source` из `ConfSources.sh` убивает панель. Симптом: молчаливый
-  выход после детекции ОС.
-- **T-019 (новая):** усилить правило стиля «одна задача — один вопрос»
-  до жёсткого ритуала ответа ИИ.
+  выход после детекции ОС. Не трогать до разбора файла по правилу 9.
+- **T-017 (новая):** универсальный механизм монтирования нескольких
+  папок (когда понадобится вторая папка).
+- **T-015 RedOS:** systemd-юнит для автозапуска — не доделано.
+- **Особенность FreeBSD 15.1:** утилита `mountpoint` отсутствует.
+  Использовать `mount | grep` или хелпер `is_mounted`.
 
 ## 📊 Статус разбора T-001
 
@@ -207,12 +243,13 @@ funcMenu.sh — ядро интерфейса, MenuRegister, MenuStart (един
 | Conf/ | 6 | 6 | готово |
 | Func/Scripts | 2 | 2 | готово |
 | Func/Menu/funcMenu.sh | 1 | 1 | готово (отрефакторен) |
+| Func/05_Disks/57_funcDiskMount.sh | 1 | 1 | готово (отлажен) |
 | Def/ | 5 | 5 | структура разобрана |
 | Func/01_Config | 9 | 0 | не начато |
 | Func/02_Backup | 8 | 0 | не начато |
 | Func/03_Servers | 9 | 0 | не начато |
 | Func/04_FW | 3 | 0 | не начато |
-| Func/05_Disks | 5 | 0 | не начато |
+| Func/05_Disks (без 57) | 4 | 0 | не начато |
 | Func/06_Logs | 3 | 0 | не начато |
 | Func/07_Mon | 9 | 0 | не начато |
 | Func/08_VM | 2 | 0 | не начато |
@@ -221,4 +258,4 @@ funcMenu.sh — ядро интерфейса, MenuRegister, MenuStart (един
 | Func/Watch | ? | 0 | не начато (T-018) |
 | Modules/ | ? | 0 | не начато |
 
-Итого: 67+ файлов, разобрано 10 (включая отрефакторенный funcMenu.sh).
+Итого: 67+ файлов, разобрано 11.
