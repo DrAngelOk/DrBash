@@ -9,9 +9,9 @@
 URL: https://github.com/DrAngelOk/DrBash
 Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 Тип: публичный
-Дата последней загрузки: 2026-10-11
+Дата последней загрузки: 2026-10-15
 
-Файлы в репозитории (11 шт.):
+Файлы в репозитории (12 шт.):
 
 - AI_START.md — короткая точка входа (правила, процедура)
 - AI_MAP.md — карта проекта (структура, модули, статус разбора)
@@ -24,6 +24,7 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - sanitize_for_repo.ps1 — обезличиватель
 - sanitize_patterns.json — паттерны обезличивания
 - config.json — конфигурация скрипта
+- chats/, patches/ — подпапки
 
 Правила для ИИ (что читать, в каком порядке, чего не делать) —
 в AI_START.md.
@@ -41,660 +42,399 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - Меню-фреймворк с регистрацией функций через MenuRegister.
 - Диспетчер запуска: единая функция MenuStart (интерактив + CLI/Cron).
 - Двухплатформенная абстракция через переменную ${OSType} (RedOS / FreeBSD).
-- Модули пронумерованы: 01_Config, 02_Backup, ..., 10_Sites.
+- Модули пронумерованы: 01_Config, 02_Backup, ..., 11_Check.
 - Файлы внутри модулей: NN_funcName.sh.
 
-Карта проекта (структура, модули, связи, статус разбора) — в AI_MAP.md.
+Карта проекта — в AI_MAP.md.
 
 Статус проекта: идёт первичный разбор кода (T-001).
-Разобраны: startMain.sh, Conf/ (6 файлов), Func/Scripts/funcUtil.sh,
-Func/Scripts/funcCheck.sh, Func/Menu/funcMenu.sh.
-Def/ (5 файлов) — структура зафиксирована, вопросы открыты.
 
-Панель запускается: `bash /ARC/Scripts/startMain.sh` открывает меню.
-CLI/Cron работает: `bash /ARC/Scripts/startMain.sh 1.5.12`
-или по имени функции: `bash /ARC/Scripts/startMain.sh sslShowCryptoVersion`.
+**Разобраны / переработаны в этой и прошлых сессиях:**
+- startMain.sh, Conf/ (7 файлов), Func/Scripts (2 файла),
+  Func/Menu/funcMenu.sh, Func/05_Disks/ (6 файлов),
+  Func/01_Config (15, 16, 17),
+  Func/02_Backup/22_funcRestic.sh, 23_funcBackrest.sh,
+  24_funcZrepl.sh.
 
-**T-013, T-014, T-015 (FreeBSD), T-016 закрыты.**
+**Новые модули:**
+- Func/11_Check/ — мониторинг (ZFS, память, веб-стек, пост-мортем).
+- Func/09_System/92_funcSystem.sh — добавлена 9.2.8 (drbash).
 
-**Новая архитектура монтирования Nextcloud:**
-- `/mnt/scripts` — точка монтирования rclone (Nextcloud WebDAV).
-- `/ARC/Scripts` — рабочая папка проекта (локальная).
-- `rsync -a --delete` — синхронизация /mnt/scripts → /ARC/Scripts.
-- Защита: mount + непустой источник + mountpoint.
-- Скрипт: `Func/05_Disks/57_funcDiskMount.sh` (ID 5.7.x).
-- Автозапуск FreeBSD: rc-скрипт `/usr/local/etc/rc.d/nextcloud_scripts`,
-  включается через `/etc/rc.conf` → `nextcloud_scripts_enable="YES"`.
-- Шаблон rc-скрипта лежит в `Sample/BSD/usr/local/etc/rc.d/nextcloud_scripts`.
-- rc-скрипт вызывает `bash /ARC/Scripts/startMain.sh <ID>` — единую
-  точку входа. ID: 5.7.2 (mount), 5.7.3 (umount), 5.7.4 (status).
-- PATH-расширение — только в `startMain.sh`, не в rc-скрипте.
+**Серверы (из Def/server.list):**
+- WSW (192.168.1.21, ens160, root, FreeBSD 15.1-RELEASE-p2) —
+  рабочий веб-сервер: apache, mysql, certbot. Мультисайт WordPress
+  (24 блога). SSH-порт 22.
+- WS2 (192.168.1.41, root, FreeBSD 15.1-RELEASE-p2) — АКТИВНЫЙ
+  архивный сервер (restic/rest-server/backrest, zrepl-приёмник).
+  SSH-порт 40022.
+- WSD (192.168.2.11, root), GSW (192.168.1.25, drangel),
+  GSD (192.168.2.15, drangel), WS (192.168.1.11, root),
+  sv-website (192.168.1.15, apache, порт 2222).
 
-## 🖥 ИНФРАСТРУКТУРА (подтверждено владельцем)
+**Роли серверов (уточнено):**
+- WSW — веб-сервер (apache/mysql), роль архива установлена,
+  но не активна. Мультисайт WordPress.
+- WS2 — активный архивный сервер.
 
-Бэкапы: BackupPC4, Restic, Backrest, zrepl, rsync.
-Мониторинг: atop, mytop, apachetop, goaccess, iotop, iftop, journalctl.
-СУБД: MariaDB в контейнере redos-mariadb, нативная MySQL во FreeBSD.
-Виртуализация: VMware ESXi — хосты Esxi_11 и Esxi_12, датасторы DS11, DS12.
+**Реверс-прокси (ADMLR):**
+- Сайт `cszn.admlr.lipetsk.ru` (blog_id=17) ходит через ADMLR.
+- ADMLR терминирует HTTPS, передаёт на WSW по HTTP.
+- ADMLR передаёт `X-Forwarded-Proto: https`, `X-Forwarded-Host`,
+  `X-Real-IP`.
+- Основной домен мультисети — `inward.su` (blog_id=1), на WSW.
+  DNS `inward.su` — на другом сервере.
+- Правка `wp-config.php` — блок `HTTP_X_FORWARDED_PROTO`
+  раскомментирован (был закомментирован).
 
-Важно: рабочая папка Z: — это WebDAV-подключение к Nextcloud
-(cloud.cszn48.ru@45443). Из-за этого git не работает с файлами на Z:.
-Команды gh (gh repo clone, gh gist create) падают. Используем только
-gh api — он работает.
+**ZFS / ARC:**
+- `vfs.zfs.arc.max` и `vfs.zfs.arc.min` — формат с точками.
+- WSW: `arc.max="3G"`, `arc.min="1G"`.
+- WS2: `arc.max="8G"`, `arc.min="2G"`.
+- `arc.min` может не применяться в рантайме (read-only).
+- `vfs.unmapped_buf_allowed="0"` — отключено на обоих
+  (документированная проблема FreeBSD на виртуалках).
+- `vfs.zfs.min_auto_ashift="12"` — для будущих пулов.
+- `ashift=9` на `www2`/`zroot` (из-за 512e на vmdk) — пересоздание
+  отложено.
+- ESXi показывает «Consumed ~100%» — норма для ZFS.
+- На WS2 — RDM-диск `/dev/da2` (WDC16), SMART работает.
+  vmdk-диски (`da0`, `da1`, `cd0`) — SMART недоступен.
 
-Серверы (из Def/server.list):
-- WSW (192.168.1.21, ens160, root, **FreeBSD 15.1-RELEASE-p2**) — рабочий
-  веб-сервер, шары NFS01.
-- WSD (192.168.2.11, ens160, root) — dev-версия WSW.
-- GSW (192.168.1.25, ens192, drangel) — рабочий, sync. Хостит Nextcloud.
-- GSD (192.168.2.15, ens192, drangel) — dev-версия GSW.
-- WS (192.168.1.11, ens160, root) — шары NFS_D.
-- sv-website (192.168.1.15, ens160, apache, порт 2222) — сайты.
+**Nextcloud (rclone mount):**
+- `/mnt/scripts` ← rclone mount (WebDAV).
+- `--dir-cache-time 10s`, `--poll-interval 5s` — для быстрого
+  обнаружения изменений.
+- `syncNextcloud` (5.7.5) — rsync с выводом `-i --stats`.
 
-**Особенность WSW:** FreeBSD 15.1, нет утилиты `mountpoint` ни в
-base, ни в /usr/local. Заменена на нативный `mount | grep`.
+**dma (mail):**
+- `dma` падает с `stack overflow` (FreeBSD Bug 281936) —
+  mail loop без SMARTHOST.
+- Временно: periodic-отчёты отключены (`daily_output=""` и т.д.)
+  в `/etc/periodic.conf` на обоих серверах.
+- TODO: настроить SMARTHOST.
+
+**Restic / rest-server / Backrest (WS2):**
+- Админ: `angelrs`, хранилище `/mnt/BS07_MY/BACK_RS`
+  (симлинк `/ARC/BACK_RS`).
+- rest-server: порт 48800 (TLS, htpasswd).
+- Backrest: порт 48898.
+- Клиенты: `back_wsw` (WSW), `back_noutd` (Windows).
+- Манифест: `Def/restic_clients.list`, парсер
+  `Conf/ConfResticClients.sh`.
+
+**zrepl (работает):**
+- WSW `zroot` → WS2 (сетевая репликация).
+- WS2 `zroot`/`www2`/`BS07_MY` — локальные push.
+- Префиксы уникализированы.
+- **ВАЖНО (15.10):** в sink-джобах путь формируется как
+  `root_fs/${client_identity}/${source_path}`. Поэтому `root_fs`
+  НЕ должен содержать `client_identity`, иначе получаются дубли
+  (`wsw/wsw`, `ws2_local/.../ws2_local`).
+- **15.10:** обнаружена сломанная структура приёмника
+  (`BS07_MY/ZREPL/ws2_local/.../ws2_local`, `.../wsw/wsw`).
+  Идёт миграция в правильную структуру:
+  - `ws2_local/zroot` → `ws2/zroot` — СДЕЛАНО
+  - `ws2_local/www2` → `ws2/www2` — СДЕЛАНО
+  - `ws2_local/BS07_MY` → `ws2/BS07_MY` — В РАБОТЕ
+  - `wsw/wsw/zroot` → `wsw/zroot` — В РАБОТЕ
+- **Правка конфига WS2 (после миграции):**
+  - `client_identity: ws2_local` → `ws2`
+  - `root_fs: BS07_MY/ZREPL` (без последнего сегмента)
+  - `sink_wsw`: `root_fs: BS07_MY/ZREPL` (без `/wsw`)
+- **Конфиг WSW — не трогаем.** `client_identity: wsw` задаётся
+  через `authorized_keys` на WS2:
+  `command="zrepl stdinserver wsw",restrict ssh-ed25519 ...`
+
+## 🖥 ИНФРАСТРУКТУРА
+
+**Особенности:**
+- **FreeBSD 15.1: нет `mountpoint`** → `mount | grep` или
+  `is_mounted` (в модуле 57).
+- **FreeBSD 15.1: `mountpoint=inherit` НЕ поддерживается.**
+- **SSH-порты:** WSW — 22, WS2 — 40022.
+- **CLICOLOR/GREP_OPTIONS** — убраны из профиля root (T-022).
+- **NFS `192.168.1.19:/nfs_01` не работает — норма**
+  (сервер ещё не настроен). Аналогично `192.168.2.5:/nfs_d`.
+
+**ZFS / ARC:**
+- WSW: `zroot`, `www2`. `www2/sql2` — БД MySQL (recordsize=16K,
+  primarycache=metadata, lz4). `www2/www2` — файлы сайтов
+  (recordsize=1M, lz4).
+- WS2: `zroot`, `www2`, `BS07_MY` (16.4T).
+- Все VM в ESXi, диски — vmdk (кроме RDM `/dev/da2` на WS2).
+
+**WordPress мультисайт:**
+- 24 блога (`wp_blogs`), основной — `inward.su` (blog_id=1).
+- Документы: `/usr/local/www/wp_new/`.
+- База: `wp_new`.
+- Плагины: Really Simple SSL, Real Media Library, Wordfence
+  (отключён), Spectra.
+- Картинки сайта 17 лежат в `uploads/sites/10/ASC_10/...`
+  (нестандартная структура, петля `AH00124` при запросе
+  несуществующих — отложено).
 
 ## 📜 ИСТОРИЯ СЕССИЙ
 
 Каждая новая сессия добавляет секцию ### Сессия <дата> в конец.
-Предыдущие секции НЕ удаляются.
 
 ### Сессия 2026-09-26 — Инфраструктура переноса контекста
-
-Что делали:
-
 - Создали папку Z:\DOC\СЕРВЕРА\Scripts\AI.
-- Разработали ai_context.ps1 (команды status, pack, unpack, save, gist-push, gist-pull, help).
-- Создали sanitize_for_gist.ps1.
-- Создали AI_CONTEXT.md, AI_TASKS.md, _END_OF_SESSION_PROMPT.txt, config.json.
-- Согласовали процедуру через GitHub Gist.
-- Провели аудит 8 блоков соглашений.
-- Создали Gist b3d8b781da0df963ab6ff35bf8f910de.
-- Проверили gist-push end-to-end.
-- Обнаружили и решили проблему с кодировкой config.json в PS 5.1 (BOM).
+- Разработали ai_context.ps1.
+- Создали AI_CONTEXT.md, AI_TASKS.md, _END_OF_SESSION_PROMPT.txt,
+  config.json.
 
-Итог сессии: инфраструктура готова.
-
-### Сессия 2026-09-27 — Улучшения ai_context.ps1
-
-Что делали:
-
-- Добавили 4 улучшения: проверка финального маркера, diff после распаковки, команда session-close, лог операций.
-- Обнаружили проблему с потерей обратных кавычек при копировании из DeepSeek.
-- Попытались исправить regex — он стал обрезать файлы с вложенными блоками.
-- Стратегическое решение: Gist для файлов контекста, дамп отдельно.
-
-### Сессия 2026-09-27 — Переезд с Gist на GitHub-репозиторий
-
-Что делали:
-
-- Обнаружили: DeepSeek не парсит gist.githubusercontent.com.
+### Сессия 2026-09-27 — Улучшения ai_context.ps1 и переезд на GitHub
+- Добавили 4 улучшения.
+- Обнаружили: DeepSeek не парсит gist.
 - Создали публичный репозиторий DrAngelOk/DrBash.
-- Залили 4 файла.
-- Проверили — читаются.
-- Отказались от Gist.
-- Обнаружили кэширование raw-URL.
-- Добавили ai_context.ps1 в репозиторий.
 
 ### Сессия 2026-09-28 — Обезличиватель и пересоздание репозитория
+- Разработали sanitize_for_repo.ps1 (26 паттернов).
 
-Что делали:
+### Сессия 2026-09-28 (продолжение) — Модернизация формата пакета
+- pack → zip, unpack → down.
+- Маркеры пакета (тройка процентов).
+- Создали AI_START.md.
 
-- Переработали sanitize_for_gist.ps1 → sanitize_for_repo.ps1.
-- Единый источник паттернов — sanitize_patterns.json (26 шт.).
-- IgnoreCase + Multiline для regex.
-- Автопроверка после замены.
-- Обнаружили утечку Telegram-токена. Токен отозван.
-- Репозиторий пересоздан, 7 файлов залиты.
-- Дамп обезличен: 123 замены, 0 остатков.
-- Обнаружено: Z: — WebDAV Nextcloud. Только gh api.
-- Исправлена проблема кодировки в repo-push.
-- Диагностика 404 raw-URL: репозиторий был приватным. Сделан публичным.
+### Сессия 2026-09-28 (продолжение 2) — Защита down, merge_project.ps1
+- Усилили защиту в down: парность BEGIN/END.
 
-### Сессия 2026-09-28 (продолжение) — Модернизация формата пакета и точка входа
+### Сессия 2026-09-28 2357 — Начало разбора T-001: Conf/ + утилиты
+- Разобрали 6 файлов Conf/, funcUtil.sh, funcCheck.sh, startMain.sh.
 
-Что делали:
+### Сессия 2026-09-29 — Карта проекта AI_MAP.md
+- Создали AI_MAP.md.
 
-- Проверили repo-push и repo-pull.
-- Переименовали: pack → zip, unpack → down.
-- Удалили save и флаг -SkipRepo.
-- Модернизировали формат пакета — маркеры (тройка процентов) вместо обратных кавычек.
-- Маркеры вынесены в config.json (секция package).
-- Добавили в down: проверку path traversal, восстановление пути, сводку.
-- Обнаружили обрезку файлов из-за маркеров в тексте описания процедуры.
-- Сменили маркеры на тройку процентов. Запрет тройки процентов в содержимом.
-- Создали AI_START.md — короткую точку входа с правилами и процедурой.
-- Сократили AI_CONTEXT.md — детали перенесли в AI_START.md.
-- Добавили config.json в список заливаемых файлов.
+### Сессия 2026-09-30 — config.json через прямые слеши
+- Перевели пути config.json на прямые слеши.
 
-Итог сессии: есть точка входа AI_START.md, формат пакета устойчив.
+### Сессия 2026-09-30 0017 — Правки пути funcMenu.sh, Def/, Nextcloud
+- Разобрали 5 файлов Def/.
+- Смонтировали Nextcloud через rclone на WSW.
 
-### Сессия 2026-09-28 (продолжение 2) — Защита down, merge_project.ps1, чистка папок
+### Сессия 2026-10-09 0008 — Модуль 57_funcDiskMount.sh, createDir
+- Спроектировали `57_funcDiskMount.sh`.
+- Добавили `createDir`.
 
-Что делали:
+### Сессия 2026-10-09 (продолжение) — Рассинхрон AI_MAP, T-013, funcMenu
+- T-013 закрыта.
+- Рефакторинг funcMenu.sh.
 
-- Доработали merge_project.ps1 по пунктам 2, 3, 4, 5, 6, 8, 9, 10:
-  проверка кодировки, -ErrorAction SilentlyContinue, автообезличивание,
-  правильный offset оглавления, прогресс [N/M], чтение UTF-8 через
-  ReadAllText, отсечение пробелов в scriptpaths.list, флаг -DryRun.
-- Протестировали merge_project.ps1: 68 файлов, дамп 730.4 КБ,
-  автообезличивание — 123 замены, 0 остатков, 7 файлов с битой кодировкой.
-- Усилили защиту в down (T-006): два уровня — проверка парности
-  BEGIN/END во всём буфере и отказ от блока при маркере BEGIN-FILE в теле.
-- Проверили оба уровня на тестовых пакетах — работают.
-- Удалили папки _gist\ и _test\ (устаревшие/временные).
-- Обновили config.json — 10 файлов, добавлен merge_project.ps1.
-- Залили 10 файлов в репозиторий.
-- Закрыли задачи T-002 (имя down оставлено), T-004 (merge_project.ps1
-  доработан), T-006 (защита down усилена).
+### Сессия 2026-10-11 — T-019, T-016, T-015 (FreeBSD)
+- T-019, T-016, T-015 (FreeBSD) закрыты.
 
-### Сессия 2026-09-29 — Синхронизация после переполнения, ревизия AI_START.md
+### Сессия 2026-10-12 — Логгер, WS2, раздел 5 (Disks), zrepl (начало)
+- Логгер унифицирован (`logsMsg`).
+- WS2 введён в строй.
+- Раздел 5 (Disks) завершён.
+- zrepl — начало.
 
-Что делали:
+### Сессия 2026-10-13 — zrepl: полный сброс и рабочая схема
+- Полный сброс zrepl.
+- Префиксы снапшотов уникализированы.
+- `source_wsw` → `sink_wsw`.
+- zrepl заработал.
+- T-024: ротация `/var/log/zrepl.log`.
 
-- Прочитали все файлы из репозитория по правилу 4.
-- Закрыли открытый вопрос про _END_OF_SESSION_PROMPT.txt: файл
-  читается через raw-URL с уникальным ?v=. Проблема была в кэше,
-  а не в фильтрах DeepSeek.
-- Обнаружили расхождение: в AI_CONTEXT.md было «9 файлов», в
-  config.json — 10. Исправлено.
-- Обновили правило 4 в AI_START.md: список файлов теперь берётся
-  из config.json (секция files), а не перечисляется вручную.
-- Сократили таблицу файлов в AI_START.md — оставили только
-  смысловые роли.
-- Синхронизировали AI_TASKS.md с фактическим состоянием: T-002,
-  T-004, T-006 переведены в «Готово».
+### Сессия 2026-10-13 (продолжение) — T-022, T-025, T-026, Restic, Backrest
+- T-022 закрыта (CLICOLOR/GREP_OPTIONS).
+- T-025 закрыта (полный send 273 GiB).
+- T-026 закрыта (holds zrepl).
+- T-023 — правила диалога.
+- Restic / Backrest — переработка.
 
-Итог сессии: правило 4 устойчиво к добавлению файлов.
+### Сессия 2026-10-14 — Мониторинг, память, веб-стек, реверс-прокси, WS2 SSH
 
-### Сессия 2026-09-29 (продолжение) — Карта проекта AI_MAP.md
+**Закрыто:**
+- `installDrbashWrapper` (funcUtil.sh) + `systemInstallDrbash` (9.2.8).
+- `zfsShowArcStats` (5.1.14), `zfsSetArcLimit` (5.1.15),
+  `zfsSetPrimaryCache` (5.1.16), `zfsSetRecordsize` (5.1.17),
+  `zfsTuneVirtualization` (5.1.18).
+- `syncNextcloud` (5.7.5) — вывод хода синхронизации.
+- `monZfsToolsInstall` (11.1.1), `monSmartInstall` (11.1.2)
+  с созданием `smartd.conf`, `monZpoolStatusParsed` (11.1.3),
+  `monZpoolIostat` (11.1.4) — bandwidth, `monArcHitRate` (11.1.5),
+  `monZfsSnapshotsSummary` (11.1.6), `monSwapInfo` (11.1.7),
+  `monSmartStatus` (11.1.8).
+- `monMemory` (11.2.1) — два значения свободной памяти,
+  `monMemoryErrors` (11.2.2), `monMemoryKernel` (11.2.3),
+  `monNetstatMbuf` (11.2.4), `monMemoryErrorsDeep` (11.2.5).
+- `monMysqlCreateMonitor` (11.3.1), `monApache` (11.3.2) —
+  расширенные паттерны + сканеры + local/external,
+  `monMysql` (11.3.3), `monOpenvpn` (11.3.4) — исправлен баг,
+  `monWebStackSummary` (11.3.5), `monPhpFpm` (11.3.6),
+  `monReverseProxyHeaders` (11.3.7), `monReverseProxyFix` (11.3.8).
+- `monPostmortem` (11.4.1) — слепок состояния.
+- `_webstack_http_check` — универсальная HTTP-проверка
+  (local/external/remote).
 
-Что делали:
+**Правки конфигов:**
+- `/boot/loader.conf` — `arc.max`/`arc.min` (формат с точками),
+  `unmapped_buf_allowed="0"`, `min_auto_ashift="12"`.
+- `.bashrc` — PS1, bash-completion.
+- `.aliases.conf` — `dr='bash /ARC/Scripts/startMain.sh'`.
+- `smartd.conf` — создан для `/dev/da2`.
+- `periodic.conf` — отключены отчёты, `daily_status_smart_devices`.
+- Nextcloud — `--dir-cache-time 10s`.
+- MySQL — пользователь `monitor` (пароль `MTr9kLp2Xw7qNv`).
+- `wp-config.php` — раскомментирован `HTTP_X_FORWARDED_PROTO`.
+- `.htaccess` — закомментировано `^wp-admin$` (не помогло,
+  безвредно).
 
-- Прочитали merge_project_dump.txt через raw-URL — файл пришёл
-  частично (парсер DeepSeek обрезал 730 КБ). Убедились: читать
-  дамп целиком через raw-URL нельзя.
-- Разобрали оглавление дампа: 67 файлов, 10 модулей.
-- Обнаружили: startMain.sh не собирается дампом (в scriptpaths.list
-  нет корня).
-- Создали AI_MAP.md — карту проекта: структура, модули, связи,
-  точка входа, найденные проблемы, статус разбора T-001.
-- Обновили AI_START.md: правило 4 + правило 9 (разбор по одному файлу
-  прямо в чат) + AI_MAP.md в таблице файлов.
-- config.json дополнен AI_MAP.md (11 файлов).
+**Разобрано попутно:**
+- `dma` stack overflow — mail loop, отключено временно.
+- `ashift=9` — причина (512e), исправлено `min_auto_ashift=12`.
+- `vfs.unmapped_buf_allowed` — отключено.
+- `arc.max` на WSW (3G) — применено.
+- `arc.min` — не поддерживается в рантайме.
+- Nextcloud sync — `--dir-cache-time 10s`.
+- **Реверс-прокси (ADMLR):** петля `AH00124` на `cszn` —
+  исправлено `HTTP_X_FORWARDED_PROTO` в `wp-config.php`.
+- **WordPress мультисайт:** петля при заходе через `hosts` —
+  ожидаемое поведение (обход ADMLR).
+- **Картинки `sites/10` vs `uploads/ASC_10`** — отложено.
+- **Сканеры** (`20.58.188.171`, `13.140.57.64` и др.) —
+  долбят `.php`, отложено.
+- **`df -h` зависает** (`D`-state) — NFS/rclone на WSW.
+  В `monPostmortem` надо `timeout` + `df -t ufs,zfs`.
+- **WS2 недоступен по SSH** (из Windows через WSW).
 
-Итог сессии: есть карта проекта, определено, как вести T-001.
+### Сессия 2026-10-15 — monPostmortem, pmAnalyze, zrepl-миграция
 
-### Сессия 2026-09-30 — config.json через прямые слеши, _END_OF_SESSION_PROMPT
+**Закрыто:**
+- `monPostmortem` (11.4.1) — доработка:
+  - `df -h` → `timeout 10 df -t ufs,zfs -h` (исключён NFS/rclone).
+  - `top -b` → `timeout 10 top -b -n 1`.
+  - Все внешние команды обёрнуты в `timeout 10`.
+  - Добавлен `zfs list -t all` для детализации датасетов.
+  - Добавлен `mount` (полный список).
+- `pmAnalyze` (11.4.2) — НОВАЯ функция:
+  - Автопарсер свежего дампа, вывод только проблем.
+  - `_pm_section` через `grep -n` + `sed` (устойчиво к юникоду).
+  - Проверки: load, TOP, memory, disks (NFS/rclone, переполнение),
+    ZFS pools (errors), ARC (hit rate), D/Z-state (без ядерных
+    потоков), netstat, Apache/PHP-FPM, dmesg/messages, crashes.
+  - Игнорирует `minfree` в `/var/crash/`, ядерные потоки,
+    секцию-заголовок.
+  - Пороги через `ConfManual.sh` (fallback в коде).
+- Обнаружена проблема структуры zrepl-приёмника (формула пути).
+- Начата миграция: `ws2_local/zroot` → `ws2/zroot`,
+  `ws2_local/www2` → `ws2/www2` — СДЕЛАНО.
 
-Что делали:
+**Обнаружено:**
+- Формула zrepl sink: `root_fs/${client_identity}/${source_path}`.
+- Неправильные `root_fs` в конфиге WS2 → дубли в структуре.
+- `zrepl.yml` WS2: `root_fs` содержит последний сегмент
+  (`/wsw`, `/ws2_local/zroot`), который потом дублируется.
 
-- Обнаружили: при передаче config.json через пакет down теряются
-  двойные обратные слеши (\ → ), JSON становится невалидным,
-  repo-push падает на ConvertFrom-Json.
-- Восстановили config.json вручную, перевели пути на прямые слеши (/).
-  PowerShell работает с / так же, как с . Проблема больше не повторится.
-- Проверили _END_OF_SESSION_PROMPT.txt через raw-URL с новым ?v= —
-  файл читается. Значит, ранее ошибочно считалось, что не читается —
-  проблема была в кэше.
-- Обновили AI_START.md: процедура закрытия сессии теперь через
-  raw-URL с ?v=, а не вставку вручную.
-
-Итог сессии: config.json устойчив к передаче, процедура закрытия
-уточнена.
-
-### Сессия 2026-09-28 2357 — Начало разбора T-001: Conf/ + funcUtil.sh + funcCheck.sh
-
-Что делали:
-
-- Начали T-001 (первичный разбор кода). Прочитали все файлы из config.json.
-- Разобрали 6 файлов Conf/: ConfAll.sh, ConfManual.sh, ConfSets.sh,
-  ConfServers.sh, ConfPaths.sh, ConfSources.sh.
-- Разобрали Func/Scripts/funcUtil.sh и Func/Scripts/funcCheck.sh.
-- Разобрали startMain.sh (точка входа).
-- Обнаружили и исправили блокирующий баг в ConfSources.sh:
-  `local` вне функции — панель падала на первой итерации while.
-- Выяснили реальную структуру: funcMenu.sh лежит в ${DirScripts}
-  (корень скриптов), не в Func/ и не в Func/Menu/, как ошибочно
-  указывал AI_MAP.md. ConfSources.sh ожидал его в Func/ — файл
-  не находился.
-- Добавили папку Modules/ для пользовательских модулей:
-  новая переменная DirScriptsModules в ConfPaths.sh, сканирование
-  в ConfSources.sh (ПУНКТ 3), создание в funcCheck.sh.
-- В funcUtil.sh добавлены функции err() (красный, stderr) и warn()
-  (жёлтый, stderr) — единая точка диагностики с автоопределением TTY.
-  Решает проблему ANSI-мусора в cron-логах.
-- Во всех разобранных файлах заменены echo -e "\033[... на err()/warn().
-- В ConfServers.sh исправлен путь к server.list:
-  ${DirMain:-/ARC/_Scripts} → ${DirScripts} (убрана опечатка _Scripts
-  и неверный уровень DirMain).
-- В funcCheck.sh убрано глушение ошибок mkdir 2>/dev/null — теперь
-  при провале выводится warn.
-- В ConfSets.sh добавлен fallback freebsd-version || uname -r.
-- В ConfAll.sh добавлены проверки : "${DirScripts:?...}" и
-  declare -F source_required.
-- ConfManual.sh взят на контроль — есть устаревшие данные (по словам
-  владельца). Правки отложены до повторного прохода.
-
-Итог сессии: Conf/ + утилиты разобраны, критические баги исправлены.
-Накоплен список «долгов» для следующих сессий.
-
-### Сессия 2026-09-30 0017 — Правки пути funcMenu.sh, разбор Def/, монтирование Nextcloud
-
-Что делали:
-
-- Прочитали все файлы из config.json.
-- Обнаружили: AI_MAP.md в репозитории устарел (статус «разобрано 0»,
-  неверный путь funcMenu.sh). Исправлено (T-007).
-- Обнаружили расхождение: funcMenu.sh лежит в ${DirScripts}/Func/Menu/,
-  а не в ${DirScripts}/ (как решили в прошлой сессии по ошибке).
-  Исправлено в ConfSources.sh и ConfPaths.sh (T-008).
-- ConfSources.sh: путь funcMenu.sh через переменную DirScriptsMenu.
-- ConfPaths.sh: DirScriptsMenu = ${DirScripts}/Func/Menu (было
-  ${DirScripts}/Menu).
-- funcCheck.sh: добавлен ${DirScriptsMenu} в paths_to_check.
-- Разобрали 5 файлов Def/: users.cfg, dns.list, esxi.list,
-  scriptpaths.list, server.list. Структура зафиксирована, все вопросы
-  открыты — разберём в модулях Func/.
-- T-009: добавили Modules в scriptpaths.list.
-- T-010: вариант A — корень в scriptpaths.list не добавляем.
-- Согласовали: реальные IP, имена, пароли в патчах и пакете
-  маскируются.
-- Задача: примонтировать папку скриптов с Nextcloud (GSW, WebDAV)
-  в /ARC/Scripts на WSW.
-- Проверили WebDAV: http://192.168.1.25/remote.php/dav/files/angeldr/DOC/СЕРВЕРА/Scripts/
-  — 401 Unauthorized (работает).
-- Смонтировали вручную через rclone: success.
-- Права: --file-perms 0640 --dir-perms 0750 --uid 0 --gid 0
-  (root:wheel). Пароли защищены, всё дерево — только для root/wheel.
-- startMain.sh запуск через bash (без +x на файлах).
-- Обнаружили проблему с CRLF: файлы в Nextcloud с Windows-переводами
-  строк. Написали PowerShell-скрипт Win/check_crlf.ps1 — проверка
-  файлов из scriptpaths.list на CRLF и BOM. Владелец правит вручную.
-- Обнаружили, что startMain.sh вызывал menuExecuteCLI вместо MenuStart
-  для интерактива. Без аргументов menuExecuteCLI возвращает 0 — меню
-  не открывалось. Исправлено (T-014).
-- Обнаружили блокирующий баг в ConfAll.sh: путь к funcCheck.sh без
-  /Scripts/. Исправлено.
-- Панель запускается: bash /ARC/Scripts/startMain.sh открывает меню.
-- Обнаружены syntax error в 10 файлах Func/ (case ... fi вместо esac,
-  done /dev/null вместо done < /dev/null). Функции из них не появляются
-  в меню. Чиним при разборе каждого файла (T-011, T-012, T-013).
-
-Итог сессии: панель запускается, монтирование Nextcloud работает
-вручную, выявлены syntax-баги в 10 модулях. Автозапуск монтирования
-на FreeBSD — задача T-015.
-
-### Сессия 2026-10-09 0008 — Модуль 57_funcDiskMount.sh, createDir, syncNextcloud
-
-Что делали:
-
-- Начали с разбора открытых задач (T-004, T-005, T-006, T-011).
-  Решения: T-006 закрыто, T-004 и T-005 отложены, T-011 отложено
-  до разбора файла.
-- Проработали новый модуль `Func/05_Disks/57_funcDiskMount.sh`
-  (ID меню 5.7.x).
-- Согласовали **новую архитектуру монтирования**:
-  - `/mnt/scripts` — точка монтирования rclone (Nextcloud WebDAV).
-  - `/ARC/Scripts` — рабочая папка проекта (локальная).
-  - `rsync -a --delete` — синхронизация /mnt/scripts → /ARC/Scripts.
-  - Защита: mountpoint + непустой источник. Если что-то не так —
-    синхронизация отменяется (защита от обнуления рабочей папки).
-- Модуль содержит функции:
-  - `installNextcloudMountDeps` — установка зависимостей (rclone,
-    fusefs, sysctl, loader.conf для FreeBSD; rclone, fuse3,
-    /etc/fuse.conf для RedOS).
-  - `ncMountBuildUrl` — сборка URL из NCWebdav*, нормализация слеша,
-    схема по порту (443 → https).
-  - `ncMountEnsureRemote` — создание/обновление remote в Def/rclone.conf,
-    сравнение URL, user, pass (obscured).
-  - `mountNextcloudScripts` — монтирование + автоматический вызов sync.
-  - `umountNextcloudScripts` — размонтирование (FreeBSD: umount;
-    RedOS: fusermount → umount).
-  - `statusNextcloudScripts` — статус (mountpoint + df).
-  - `syncNextcloud` — rsync /mnt/scripts → /ARC/Scripts.
-- В `Func/Scripts/funcUtil.sh` добавлена функция `createDir`:
-  проверяет существование каталога, создаёт если нет, `err` при ошибке,
-  `info` при реальном создании.
-- Правило проекта: **заменять `mkdir -p` на `createDir` везде**, где
-  встретится (унификация).
-- Решение по конфигу rclone: **в `Def/`, в монтируемой папке** —
-  `${DirScriptsDef}/rclone.conf`. Владелец принял риск (obscured-пароли
-  доступны через Nextcloud).
-- Согласовано **правило работы**: один вопрос за раз, дождаться ответа,
-  зафиксировать решение, только потом следующий вопрос. Не «спрашивать
-  всё сразу».
-- Согласовано: по каждому пакету — отдельная команда установки.
-- Автозапуск (rc-скрипт FreeBSD / systemd RedOS) — отдельная задача
-  T-015, в эту сессию не доделывали.
-- Универсальный механизм для нескольких монтируемых папок —
-  отдельная задача T-017.
-
-Итог сессии: `57_funcDiskMount.sh` спроектирован и выдан целиком,
-добавлена `createDir` в funcUtil.sh. T-015 и T-016 остаются открытыми
-(автозапуск + модуль с новыми решениями).
-
-### Сессия 2026-10-09 (продолжение) — Анализ рассинхрона AI_MAP, закрытие T-013, рефакторинг funcMenu
-
-Что делали:
-
-- Прочитали все файлы из config.json по правилу 4 (кроме исключённого
-  merge_project_dump.txt — по решению владельца).
-- Проанализировали причину рассинхрона AI_MAP.md ↔ AI_TASKS/AI_CONTEXT.
-  Причина: AI_MAP.md отсутствовал в составе пакета переноса и не
-  копировался в zip. Решение — вариант A: править три точки.
-- Выдали новые редакции трёх файлов с правками:
-  - `_END_OF_SESSION_PROMPT.txt` — добавлен пункт 3 (AI_MAP.md) в
-    состав пакета, добавлен raw-URL для AI_MAP.md.
-  - `ai_context.ps1` — в `Invoke-Zip` добавлен AI_MAP.md; в
-    `Invoke-Status` добавлен AI_MAP.md; расширены комментарии
-    по всем функциям и блокам.
-  - `AI_START.md` — Правило 4 дополнено: merge_project_dump.txt НЕ
-    читать в начале сессии; AI_MAP.md обновляется при закрытии сессии.
-    Правило 6 усилено: при изменении существующего файла — всегда
-    выдавать целиком с расширенными комментариями.
-- Согласовано **правило стиля общения**: одна задача — один вопрос.
-  По каждому пункту: короткий анализ, один вопрос, варианты буквами
-  A/B/C, ждать решения владельца, без «решений по умолчанию».
-- **T-013 — закрыта.** Разобрали 9 файлов с syntax error:
-  - 15_funcSslRsa.sh — `case` без `esac` в sslAuditDashboard + лишний `fi`.
-  - 16_funcCertbot.sh — лишний `fi` в certRenew.
-  - 17_funcDocker.sh — лишний `fi` в dockerDiagnosticsDashboard.
-  - 23_funcBackrest.sh — лишний `fi` в brManageService.
-  - 24_funcZrepl.sh — лишний `fi` в zrManageService.
-  - 32_funcSql.sh — 2 лишних `fi` (dbMaintenanceTools, dbUsersManagement).
-  - 44_funcSeLinux.sh — лишний `fi` в seEnable.
-  - 61_funcLogs.sh — лишний `fi` в logsShowDmesg.
-  - 81_funcEsxi.sh — `done /dev/null` → `done < /dev/null` + `esac`
-    в esxiManageFirewallState.
-  Все 9 файлов проходят `bash -n`. Панель запускается без ошибок.
-- **T-011, T-012** — фактически закрыты в рамках T-013:
-  - T-012 (81_funcEsxi.sh: done /dev/null) — исправлено.
-  - T-011 (12_funcUsers.sh: case закрыт через fi) — в логе не
-    появлялся, скорее всего уже исправлен ранее.
-- **Рефакторинг funcMenu.sh + startMain.sh** (по решению владельца):
-  - Удалена функция `menuExecuteCLI` — она обращалась к несуществующему
-    массиву `MenuRegFuncs`, из-за чего CLI/Cron не работал. Вся
-    маршрутизация — через `MenuStart`.
-  - `MenuStart` теперь единая точка входа: без аргументов — интерактив,
-    с аргументом — CLI/Cron. Поддерживает вызов и по цифровому ID
-    (например `1.5.12`), и по имени функции (например
-    `sslShowCryptoVersion`).
-  - `MenuStart` — защита `${DebugScripts:-0}`, проверка `declare -f`
-    перед вызовом, убран внешний `while true` в интерактивном режиме.
-  - `MenuFooter` — `${UserCur}` → `${RunAsUser}` (исправлено
-    обращение к несуществующей переменной).
-  - `MenuRenderer` — убран `sleep 2` при ошибке ввода; сообщение при
-    пустом уровне; проверка `declare -f` перед вызовом функции.
-  - **`MenuRenderer` — ввод локальный:** пользователь внутри подменю
-    вводит только локальный ID (например `5`), полный ID собирается
-    из `parent_id + "." + choice`. На главном экране ввод остаётся
-    полным.
-  - `startMain.sh` — одна ветка через `MenuStart "$@"`.
-  - Все правки пронумерованы `# [FIX]`, файлы выданы целиком
-    с расширенными комментариями к каждой переменной и блоку.
-- **funcMenu.sh** выдан целиком дважды: сначала с правками, затем
-  с расширенными комментариями ко всем переменным.
-- **Отложено на следующие сессии:**
-  - Задача усилить правило «одна задача — один вопрос» как жёсткий
-    ритуал в AI_START.md (Правило 11) + AI_CONTEXT.md (СОГЛАШЕНИЯ).
-  - Разбор `Func/Watch/watchMysql.sh` — скрипт `source`-ится из
-    `ConfSources.sh` и вызывает `exit 1`, из-за чего панель молча
-    завершается. Решение: `exit` в модуле заменить на `return`,
-    либо исключить `Watch/` из автообхода.
-  - Разбор `ConfSources.sh` — почему он `source`-ит `Func/Watch/*`
-    наравне с модулями.
-
-Итог сессии: закрыты T-011, T-012, T-013. Панель запускается и
-корректно работает как интерактив и как CLI/Cron. `funcMenu.sh` +
-`startMain.sh` отрефакторены. Правило 4 и 6 уточнены. Согласовано
-правило «одна задача — один вопрос». Добавлены задачи по Watch и
-по усилению правила стиля.
-
-### Сессия 2026-10-11 — T-019 (жёсткий ритуал), T-016 (отладка модуля), T-015 (rc-скрипт FreeBSD)
-
-Что делали:
-
-- Прочитали файлы из config.json по правилу 4 (AI_START.md, AI_MAP.md,
-  AI_CONTEXT.md, AI_TASKS.md, _END_OF_SESSION_PROMPT.txt, config.json).
-- Обнаружили: `_END_OF_SESSION_PROMPT.txt` на диске был в старой
-  кодировке (CP1251/CP866), затем восстановлен в UTF-8. Содержание
-  тоже было старое — без AI_MAP.md в составе пакета. Выдали новую
-  редакцию — с пунктом 3 (AI_MAP.md), восстановленными эмодзи и
-  raw-URL для AI_MAP.md.
-- **T-019 — закрыта.** Усилили правило «одна задача — один вопрос»:
-  - В `AI_START.md` — добавлено **Правило 11** (жёсткий ритуал ответа:
-    короткий анализ 3-6 строк, один вопрос, буквы A/B/C, ждать
-    ответа, фиксировать решение; нельзя — несколько вопросов сразу,
-    «решение по умолчанию», код до согласования).
-  - В `AI_CONTEXT.md` → «СОГЛАШЕНИЯ» — старый мягкий блок заменён
-    новым жёстким ритуалом.
-  - В `AI_START.md` правило 4 дополнено перечнем файлов, которые
-    НЕ читать при старте: `ai_context.ps1`, `merge_project.ps1`,
-    `sanitize_for_repo.ps1`, `sanitize_patterns.json`,
-    `merge_project_dump.txt`.
-- **T-016 — закрыта.** Разобрали `Func/05_Disks/57_funcDiskMount.sh`:
-  - Обнаружено: утилита `mountpoint` отсутствует на FreeBSD 15.1
-    (проверено на WSW — нет ни в /sbin, ни в /usr/sbin, ни в /usr/local).
-    Заменили все вызовы `mountpoint -q` на хелпер `is_mounted()` с
-    тремя способами проверки: `mountpoint` → `mount | grep " on PATH "`
-    (FreeBSD) → `grep PATH /proc/mounts` (Linux).
-  - Добавлены fallback-функции `info`/`warn`/`err`/`createDir` — на
-    случай, если `funcUtil.sh` не подгружен.
-  - В блок конфигурации добавлены комментарии к каждой переменной
-    (`NC_REMOTE_NAME`, `NC_MOUNT_POINT`, `NC_RCLONE_CONFIG`,
-    `NC_LOG_FILE`).
-  - Схема URL определяется явно: порт 80 → http, всё остальное → https.
-  - Убрана проверка `$?` после `url=$(ncMountBuildUrl)` — только
-    `-z "${url}"`.
-  - Убраны табуляции после `else` (единый стиль).
-  - Модуль протестирован на WSW, работает: монтирование, статус,
-    синхронизация, размонтирование.
-- **T-015 (FreeBSD-часть) — закрыта.** Написали rc-скрипт автозапуска:
-  - Шаблон: `Sample/BSD/usr/local/etc/rc.d/nextcloud_scripts`.
-  - Целевой путь: `/usr/local/etc/rc.d/nextcloud_scripts`.
-  - Шебанг: `#!/usr/local/bin/bash`.
-  - Вызовы через единую точку входа: `bash /ARC/Scripts/startMain.sh <ID>`.
-  - ID: 5.7.2 (mount), 5.7.3 (umount), 5.7.4 (status).
-  - Логирование: `start` / `stop` → `>> /var/log/my/rclone-scripts.log 2>&1`;
-    `status` / `restart` → консоль.
-  - `installNextcloudMountDeps` расширен: разворачивает rc-скрипт из
-    `Sample/BSD/...`, ставит `chmod 755` + `chown root:wheel`,
-    идемпотентно прописывает `nextcloud_scripts_enable="YES"` в
-    `/etc/rc.conf` (принудительная замена на YES, BSD-стиль `sed -i ''`).
-  - Автозапуск проверен: после `reboot` — `service nextcloud_scripts status`
-    показывает `СМОНТИРОВАН`.
-- **Согласовано архитектурное правило:** все «предстартовые»
-  настройки окружения (PATH-расширение, переменные среды, umask)
-  — ТОЛЬКО в `startMain.sh` как единой точке входа. Не дублировать
-  в rc-скриптах, cron-обёртках, systemd-юнитах.
-- **Согласовано:** любой автозапуск/CLI/Cron — только через единую
-  точку входа `startMain.sh <ID>`. Не вызывать модули напрямую.
-- **Отложено на следующие сессии:**
-  - **RedOS-часть T-015** — systemd-юнит для автозапуска на RedOS.
-  - **T-018** — `Func/Watch/watchMysql.sh` (`exit 1` убивает панель).
-    Не трогали по решению владельца — до разбора файла по правилу 9.
-  - **T-001** — продолжить `Func/01_Config` (9 файлов).
-  - **T-003** — повторный проход `ConfManual.sh`.
-  - **T-004, T-005** — отложенные.
-  - **T-017** — универсальный механизм монтирования нескольких папок.
-
-Итог сессии: T-019, T-016, T-015 (FreeBSD) закрыты. Правило стиля
-стало жёстким. Модуль `57_funcDiskMount.sh` отлажен на FreeBSD.
-Автозапуск через rc-скрипт работает. PATH-расширение — в startMain.sh.
-Осталось: T-015 (RedOS), T-018, T-001, T-003, T-004, T-005, T-017.
+**Правки конфигов:**
+- (после миграции) WS2 `zrepl.yml` — `root_fs`, `client_identity`.
+- WSW `zrepl.yml` — НЕ трогаем.
 
 ## ❓ ОТКРЫТЫЕ ВОПРОСЫ
 
-1. `source_required` не проверяет код возврата `source` — уровень
-   `warning` не работает для файлов с `exit 1`. Системная правка
-   funcUtil.sh — отложена (T-004).
-2. ConfManual.sh: устаревшие данные, `SyncroSrv` без `else` (риск
-   unbound под set -u), возможное дублирование `SRVNeedName`/`SyncSRV`,
-   `DebugScripts` без явного читателя. Правки отложены (T-003).
-3. `sanitize_patterns.json` — проверен, ловит IP-адреса, короткие
-   хостнеймы, пароли из server.list. Закрыто.
-4. ConfPaths.sh — потенциально мёртвые переменные:
-   - `DirMainDock` — не создаётся в funcCheck.sh, использовать ли — открыто.
-   - `DirMainConfigDef` (= ${DirMain}/DEF/CFG) — регистр DEF vs Def —
-     открыто.
-   Отложено до разбора модулей (T-005).
-5. ConfServers.sh — пароли в server.list хранятся открыто на сервере.
-   Владелец подтвердил: обезличиватель ловит, отдельные действия
-   не требуются. Закрыто (T-006).
-6. Def/ файлы — все вопросы открыты, разберём в модулях Func/:
-   - users.cfg: все строки закомментированы, пароли с #, $, , —
-     ломают ли парсер.
-   - dns.list: punycode «как есть» или декодировать.
-   - esxi.list: свой парсер или parseVerticalServerConfig.
-   - scriptpaths.list: merge_project.ps1 рекурсивно обходит?
-   - server.list: NONE как маркер, пароли с > < # * — где-то без
-     кавычек, формат mounts source::target, functions=ssh,backup,
-     регистр секции [sv-website], ssh_port=2222, webdav_*.
-7. `rclone obscure` — детерминирован? Предположили, что да.
-   Проверить при отладке.
-8. RedOS-пакет FUSE — `fuse3` или `fuse`? Проверить при отладке.
-9. `/etc/fuse.conf` в RedOS — есть всегда или может отсутствовать?
-   Проверить при отладке.
-10. **T-015 (RedOS-часть)** — systemd-юнит для автозапуска. Не доделано.
-11. **T-018** — `Func/Watch/watchMysql.sh` (и подобные): содержит
-    `exit 1`, который при `source` из `ConfSources.sh` убивает панель.
-    Решение: `exit` → `return` в скриптах, которые планируются
-    `source`-ить; либо исключить `Watch/` из автообхода.
-12. **T-017** — универсальный механизм монтирования нескольких папок
-    (когда понадобится вторая папка).
-13. **Особенность FreeBSD 15.1:** утилита `mountpoint` отсутствует.
-    Везде использовать `mount | grep` (или хелпер `is_mounted`).
+1. **WS2 SSH** — `kex_exchange_identification: timeout`. TCP идёт,
+   SSH-баннер не приходит. Отложено.
+2. **Картинки WordPress** — `sites/10/ASC_10/...` vs
+   `uploads/ASC_10/...`. Петля `AH00124` при запросе
+   несуществующих. Отложено.
+3. **Сканеры** — блокировка IP (`20.58.188.171` и др.).
+4. **SMART** — `/dev/da2` self-test failed (WDC16). Нужно
+   `smartctl -a /dev/da2`.
+5. **dma** — настроить SMARTHOST, вернуть periodic-отчёты.
+6. **T-001** — продолжить разбор `Func/01_Config` (11–14, 18, 19),
+   `Func/02_Backup` (21, 25–28).
+7. **T-021** — миграция `info`/`warn`/`err` на `logsMsg`.
+8. **T-003** — `ConfManual.sh`.
+9. **T-018 (расширено)** — ревизия `Func/Watch/` (что перенесено,
+   что нет).
+10. **T-015 (RedOS)** — systemd-юнит.
+11. **НОВАЯ** — `server.list` под роли.
+12. **НОВАЯ** — скрипт вкл/выкл ролей.
+13. **НОВАЯ** — `Def/disks.list`.
+14. **НОВАЯ** — `rsInitRepository` от `angelrs`.
+15. **НОВАЯ** — `monPhpFpm` пул не настроен (`pm.status_path`).
+16. **zrepl-миграция** — завершить: `BS07_MY`, `wsw`;
+    снять `@migrate`; destroy `ws2_local`, `wsw/wsw`; правка
+    конфига WS2; перезапуск zrepl.
 
 ## 🛠 КОМАНДЫ ai_context.ps1
 
 | Команда | Что делает |
-
+|---------|-----------|
 | status | Показать состояние AI-папки. |
-| zip | Собрать zip-пакет для новой сессии. |
-| down | Распаковать пакет из буфера в файлы. |
-| repo-push | Залить файлы контекста в GitHub-репозиторий. |
-| repo-pull | Скачать файлы из репозитория в _repo. |
+| zip | Собрать zip-пакет. |
+| down | Распаковать пакет из буфера. |
+| repo-push | Залить в GitHub. |
+| repo-pull | Скачать из GitHub. |
 | session-close | down + zip + repo-push. |
 | help | Справка. |
 
 ## 🛠 ИНСТРУМЕНТЫ (файлы и папки)
 
 | Файл / папка | Назначение |
-
-| AI_START.md | Короткая точка входа (правила, процедура). |
-| AI_MAP.md | Карта проекта (структура, модули, статус разбора). |
-| AI_CONTEXT.md | Этот файл (детали проекта). |
+|--------------|-----------|
+| AI_START.md | Короткая точка входа. |
+| AI_MAP.md | Карта проекта. |
+| AI_CONTEXT.md | Этот файл. |
 | AI_TASKS.md | Чек-лист. |
-| _END_OF_SESSION_PROMPT.txt | Промпт-триггер (формат пакета). |
-| ai_context.ps1 | Единый инструмент управления. |
-| merge_project.ps1 | Сборщик дампа (оригинал в Win). |
+| _END_OF_SESSION_PROMPT.txt | Промпт-триггер. |
+| ai_context.ps1 | Управляющий скрипт. |
+| merge_project.ps1 | Сборщик дампа. |
 | sanitize_for_repo.ps1 | Обезличиватель. |
-| sanitize_patterns.json | Паттерны обезличивания (26 шт.). |
-| config.json | Конфигурация: репозиторий, маркеры пакета, пути, список файлов. |
-| Win/ | Windows-утилиты (check_crlf.ps1). |
-| Sample/ | Шаблоны для копирования на целевые пути. |
+| config.json | Конфигурация. |
 | chats/ | Резюме сессий. |
-| patches/ | Патчи по функциям. |
-| dumps/ | Оригинальные дампы (с паролями). |
-| _repo/ | Локальные копии из репозитория. |
+| patches/ | Патчи. |
+| _repo/ | Локальные копии. |
 | _transfer/ | Готовые zip-пакеты. |
-| logs/ | Лог операций. |
 
 ## ⚙️ СОГЛАШЕНИЯ
 
-- Правки в коде помечать # [FIX].
-- Русские комментарии — разрешены.
-- sudo — только для root.
+- Правки в коде помечать `# [FIX]`.
 - Файлы с паролями — маска 600.
-- Не писать про много будущих шагов.
-- Присылать файлы целиком.
-- В рамках одной сессии — несколько задач.
-- Не контролировать каждый шаг пользователя.
 - В содержимом файлов НЕ использовать тройной символ процента.
-- В описании процедуры — псевдокод [BEGIN FILE] / [END FILE].
 - В начале каждой сессии — читать файлы из config.json.
-- ai_context.ps1, sanitize_for_repo.ps1, sanitize_patterns.json,
-  merge_project.ps1 — НЕ читать в начале сессии. Только при
-  необходимости (статичные инструменты, меняются редко).
-- merge_project_dump.txt — НЕ читать в начале сессии (обрезается
-  парсером DeepSeek, ~730 КБ). Смотреть отдельно, по частям.
-- Разбор кода (T-001) — по одному файлу прямо в чат.
-- Пути в config.json — с прямыми слешами (/).
-- При разборе кода: реальные IP, имена, пароли маскируются в патчах
-  и пакете переноса.
-- Формат ответов ИИ при разборе кода: без предварительного кода до
-  согласования; короткий список предложений; по каждому пункту вопрос
-  «делаем / не делаем».
-- В чате — сжато, по делу. Комментарии в коде — подробные.
-- В чате при отладке — команды без -y (видно, что ставится).
-  -y — только в финальном скрипте.
-- Не проверять владельца, не переспрашивать вывод команд.
-- Кириллица в путях Nextcloud — остаётся везде.
-- Все ключи в server.list — единообразно во всех секциях (NONE если
-  не используется).
-- **Заменять `mkdir -p` на `createDir`** везде, где встретится
-  (унификация).
-- **По каждому пакету — отдельная команда установки.**
-- **При изменении существующего файла — всегда выдавать его целиком
-  с расширенными комментариями.** (По правилу 6.)
-- **Правило стиля (одна задача — один вопрос).** Жёсткий ритуал
-  ответа ИИ:
-  1. Короткий анализ — 3–6 строк, без кода и развёрнутых рассуждений.
-  2. Один вопрос пользователю. Варианты — буквами A / B / C.
-  3. Ждать ответа. Не двигаться дальше без решения владельца.
-  4. Зафиксировать решение — только потом следующий шаг.
-  Нельзя: несколько вопросов сразу, расписывать будущие шаги пачкой,
-  предлагать «решение по умолчанию», выдавать код до согласования.
-- **Автозапуск / CLI / Cron** — только через единую точку входа
-  `startMain.sh <ID>`. Не вызывать модули напрямую.
-- **PATH-расширение и другие предстартовые настройки** — только в
-  `startMain.sh`. Не дублировать в rc-скриптах и systemd-юнитах.
-- **rc-скрипты FreeBSD:** шаблоны в `Sample/BSD/...`, развёртывание
-  через `installNextcloudMountDeps`. Логирование — только `start` и
-  `stop` в `/var/log/my/rclone-scripts.log`; `status` / `restart` —
-  в консоль.
+- `ai_context.ps1`, `sanitize_*`, `merge_project.ps1`,
+  `merge_project_dump.txt` — НЕ читать в начале сессии.
+- Разбор кода — по одному файлу прямо в чат.
+- Пути в config.json — с прямыми слешами.
+- Реальные IP, имена, пароли маскируются в патчах.
+- **Единый логгер — `logsMsg`** (см. `61_funcLogs.sh`).
+- **Заменять `mkdir -p` на `createDir`.**
+- **При изменении существующего файла — выдавать целиком.**
+- **Не задавать лишние подтверждающие вопросы. Доверять владельцу.**
+- **Автозапуск / CLI / Cron** — только через `startMain.sh <ID>`.
+- **PATH-расширение** — только в `startMain.sh`.
+- **Перед парсингом вывода утилит** — `unset CLICOLOR GREP_OPTIONS`.
+- **`vfs.zfs.arc.max` / `arc.min`** — формат с точками.
+- **`timeout` для внешних команд** в скриптах, собирающих
+  диагностику (пост-мортем).
+- **`timeout` НЕ работает с bash-функциями** — только с бинарниками.
+- **`zrepl sink`: `root_fs` БЕЗ `client_identity`** — иначе дубли.
 
 ## 📁 КОДИРОВКА ФАЙЛОВ
 
-- Bash-скрипты: UTF-8 без BOM, LF.
-- PowerShell-инструменты: ASCII в исполняемых строках. UTF-8 с BOM (PS 5.1) или без BOM (PS 7).
-- JSON-файлы: UTF-8 с BOM.
+- Bash: UTF-8 без BOM, LF.
+- PowerShell: ASCII в исполняемых строках.
+- JSON: UTF-8 с BOM.
 
 ## 🧾 ЗАМЕТКИ
 
-- Правильный путь: Z:\DOC\СЕРВЕРА\Scripts\AI.
-- Gist не парсится DeepSeek. Только raw.githubusercontent.com.
-- DeepSeek кэширует raw-URL. Добавлять ?v=<уникальное>.
-- Z: — WebDAV-диск. git не работает. Только gh api.
-- Дамп обезличивать через sanitize_for_repo.ps1.
-- Формат пакета — в _END_OF_SESSION_PROMPT.txt, маркеры — в config.json.
-- down проверяет path traversal.
-- down восстанавливает путь при потере .
-- down проверяет парность BEGIN/END и маркеры в теле (T-006).
-- Пакет переноса НЕ оборачивается в обратные кавычки.
-- merge_project_dump.txt (730 КБ) через raw-URL не читается целиком — обрезается.
-- Карта проекта — в AI_MAP.md.
-- Разбор кода — по одному файлу прямо в чат.
-- _END_OF_SESSION_PROMPT.txt читается через raw-URL с ?v=.
-- Пути в config.json — с прямыми слешами (/) — защита от потери \.
-- ConfManual.sh — под контролем, требует повторного прохода.
-- funcMenu.sh лежит в ${DirScripts}/Func/Menu/ (не в корне).
-- Панель запускается: bash /ARC/Scripts/startMain.sh (без +x).
-- **Монтирование Nextcloud:** /mnt/scripts → rsync → /ARC/Scripts.
-  Скрипт: Func/05_Disks/57_funcDiskMount.sh (ID 5.7.x).
-- **Конфиг rclone:** Def/rclone.conf (в монтируемой папке, риск принят).
-- **createDir** — новая утилита в funcUtil.sh. Заменяет mkdir -p везде.
-- **AI_MAP.md входит в пакет переноса** (правило 3 в _END_OF_SESSION_PROMPT.txt).
-- **MenuStart — единая точка входа.** Без аргументов — интерактив.
-  С аргументом — CLI/Cron по цифровому ID или по имени функции.
-- **menuExecuteCLI удалена.**
-- **Ввод в меню локальный.**
-- **funcMenu.sh — расширенные комментарии.**
-- **T-013, T-014, T-015 (FreeBSD), T-016, T-019 — закрыты.**
-- **FreeBSD 15.1 (WSW): нет утилиты `mountpoint`.** Использовать
-  `mount | grep` или хелпер `is_mounted`.
-- **rc-скрипт автозапуска:** `/usr/local/etc/rc.d/nextcloud_scripts`,
-  шаблон в `Sample/BSD/usr/local/etc/rc.d/nextcloud_scripts`.
-- **Логирование rc-скрипта:** `/var/log/my/rclone-scripts.log` — общий
-  с rclone. Только для `start`/`stop`.
+- **Только raw.githubusercontent.com.**
+- **Кэш raw-URL:** `?v=<уникальное>`.
+- **Z: — WebDAV. Только `gh api`.**
+- **Карта проекта — в AI_MAP.md.**
+- **Панель:** `bash /ARC/Scripts/startMain.sh`.
+- **createDir** — утилита в funcUtil.sh.
+- **MenuStart — единая точка входа.**
+- **Единый логгер — `logsMsg`.**
+- **`monPostmortem`** — слепок в `/var/log/postmortem/` (dump-*.txt.gz).
+- **`pmAnalyze`** — анализ свежего слепка, только проблемы.
+- **HTTP-проверка:** `_webstack_http_check` (local/external/remote).
+- **MySQL-монитор:** пользователь `monitor`, пароль
+  `MTr9kLp2Xw7qNv`.
+- **WS2 SSH** — отложено (`kex_exchange_identification: timeout`).
+- **NFS не работает — норма** (`192.168.1.19`, `192.168.2.5` —
+  серверы ещё не настроены).
+- **zrepl sink:** `root_fs/${client_identity}/${source_path}`.
+- **zrepl-миграция:** см. открытые вопросы п.16.
