@@ -1,291 +1,128 @@
 # AI TASKS — Z:\DOC\СЕРВЕРА\Scripts
 
-Актуальный чек-лист. В начале сессии — смотрим, что в работе.
-В конце сессии — обновляем статусы и добавляем новые задачи.
-
 ## 🎯 В РАБОТЕ
 
-□ T-001 — Первичный разбор кода проекта
-Источник: файлы проекта заливаются по одному прямо в чат.
-Карта проекта: AI_MAP.md.
+□ **zrepl-миграция структуры приёмника (WS2)** — ЗАВЕРШИТЬ.
+- ☑ `ws2_local/zroot` → `ws2/zroot` (СДЕЛАНО)
+- ☑ `ws2_local/www2` → `ws2/www2` (СДЕЛАНО)
+- □ `ws2_local/BS07_MY` → `ws2/BS07_MY` (2.32T, send/recv)
+- □ `wsw/wsw/zroot` → `wsw/zroot` (252G, send/recv)
+- □ Снять `@migrate` со всех перенесённых
+- □ Destroy `BS07_MY/ZREPL/ws2_local` (recursive)
+- □ Destroy `BS07_MY/ZREPL/wsw/wsw` (recursive, родитель `wsw` оставить)
+- □ Правка `zrepl.yml` на WS2:
+  - `push_ws2_*`: `client_identity: ws2_local` → `ws2`
+  - `local_sink_*`: `root_fs: BS07_MY/ZREPL` (без хвоста)
+  - `sink_wsw`: `root_fs: BS07_MY/ZREPL` (без `/wsw`)
+- □ `zrepl configcheck`
+- □ `service zrepl restart` (сначала WS2, потом WSW)
+- □ `zrepl status` — проверить
 
-Что делать: разобрать код по модулям, найти проблемы.
+□ **T-018 (расширено)** — ревизия `Func/Watch/`.
+- □ Что в `Func/Watch/` сейчас
+- □ Что уже перенесено (`watchMysql.sh`, `mon*`)
+- □ Что осталось
+- □ Решение по каждому: перенести / удалить / оставить
 
-Порядок разбора:
+□ **WS2 SSH** — `kex_exchange_identification: timeout`.
+TCP-сессия идёт, SSH-баннер не приходит. `UseDNS no`, MTU —
+не помогло. Отложено.
 
-- startMain.sh — ГОТОВО
-- Conf/ (6 файлов) — ГОТОВО
-- Func/Scripts/funcUtil.sh, funcCheck.sh — ГОТОВО
-- Func/Menu/funcMenu.sh — ГОТОВО (отрефакторен в сессии 2026-10-09)
-- Def/ (5 файлов) — ГОТОВО (структура, все вопросы открыты)
-- Func/05_Disks/57_funcDiskMount.sh — ГОТОВО (отладка 2026-10-11)
-- Func/01_Config … Func/10_Sites — НЕ НАЧАТО
+□ **Картинки WordPress** — `sites/10/ASC_10/...` vs
+`uploads/ASC_10/...`. Петля `AH00124`. Отложено.
 
-Формат результата: патчи в patches/fix_<имя>.md + готовый код для вставки.
+□ **T-001 — Первичный разбор кода проекта**
+- `startMain.sh` — ГОТОВО
+- `Conf/` (7 файлов) — ГОТОВО
+- `Func/Scripts/` (2 файла) — ГОТОВО
+- `Func/Menu/funcMenu.sh` — ГОТОВО
+- `Func/05_Disks/` (6 файлов) — ГОТОВО
+- `Func/06_Logs/61_funcLogs.sh` — ГОТОВО (ротация)
+- `Func/01_Config/` (9 файлов) — ЧАСТИЧНО (15, 16, 17)
+- `Func/02_Backup/` — ЧАСТИЧНО (22, 23, 24)
+- `Func/03_Servers/ … Func/10_Sites/` — НЕ НАЧАТО
+- `Func/11_Check/` — ГОТОВО (11.1.x, 11.2.x, 11.3.x, 11.4.1, 11.4.2)
 
-□ T-003 — Повторный проход по ConfManual.sh
-Устаревшие данные, SyncroSrv без else, дублирование SRVNeedName/SyncSRV,
-DebugScripts без читателя. Разобрать, что устарело, что оставить.
+□ **T-021 — Миграция логгера** — ~98 вызовов `info`/`warn`/`err`.
 
-□ T-004 — Системная правка funcUtil.sh: source_required (ОТЛОЖЕНО)
-source_required не проверяет код возврата source — уровень warning
-не работает для файлов с exit 1. Вернуться позже.
+□ **T-003 — ConfManual.sh** — устаревшие данные.
 
-□ T-005 — Ревизия «мёртвых» переменных ConfPaths.sh (ОТЛОЖЕНО)
-DirMainDock, DirMainConfigDef (DEF vs Def). Проверить использование
-в модулях. Вернуться при разборе модулей.
+□ **T-015 (RedOS)** — systemd-юнит.
 
-□ T-015 — Автозапуск монтирования Nextcloud
-**FreeBSD — ГОТОВО.** rc-скрипт `/usr/local/etc/rc.d/nextcloud_scripts`
-создан, автозапуск проверен на reboot. Шаблон — в
-`Sample/BSD/usr/local/etc/rc.d/nextcloud_scripts`.
-**RedOS — НЕ ДОДЕЛАНО.** Требуется systemd-юнит.
+□ **T-017 — Универсальный механизм монтирования.**
 
-□ T-017 — Универсальный механизм монтирования нескольких папок
-Сейчас 57_funcDiskMount.sh работает с одним монтированием
-(Nextcloud Scripts). Когда понадобится вторая монтируемая папка —
-переработать на универсальный механизм: список монтирований в Def/,
-функции с аргументом (имя), mountAll / umountAll / statusAll.
-Не забегать раньше времени.
+□ **T-004 — source_required** (отложено).
 
-□ T-018 — Func/Watch/watchMysql.sh и подобные
-Скрипт содержит exit 1, который при source из ConfSources.sh
-убивает панель. Решение: в скриптах, которые планируются source-ить,
-заменить exit на return. Либо исключить Func/Watch/* из автообхода
-в ConfSources.sh.
-**Не трогать до разбора файла по правилу 9.**
+□ **T-005 — Мёртвые переменные ConfPaths.sh** (отложено).
+
+□ **T-020 — Тестирование 53_funcGpart.sh** (отложено).
+
+□ **Сканеры** — блокировка IP (`20.58.188.171`, `13.140.57.64`).
+
+□ **SMART** — `/dev/da2` self-test failed (WDC16).
+Нужно `smartctl -a /dev/da2`.
+
+□ **dma** — настроить SMARTHOST, вернуть periodic-отчёты.
+
+□ **`monPhpFpm`** — пул не настроен (`pm.status_path`).
+
+□ **`monReverseProxyHeaders` / `monReverseProxyFix`** —
+проверить на сервере (11.3.7, 11.3.8).
+
+□ **НОВАЯ** — `server.list` под роли.
+
+□ **НОВАЯ** — скрипт вкл/выкл ролей.
+
+□ **НОВАЯ** — `Def/disks.list`.
+
+□ **НОВАЯ** — `rsInitRepository` от `angelrs`.
 
 ## ⏳ СЛЕДУЮЩЕЕ
 
-Продолжение T-001: Func/01_Config (9 файлов: 11_funcNet.sh … 19_funcCyrillic.sh).
-Разбор Func/Watch/* и ConfSources.sh (T-018).
-RedOS-часть T-015 — systemd-юнит.
+1. **zrepl-миграция** — завершить (`BS07_MY`, `wsw`, destroy, конфиг).
+2. **T-018 (расширено)** — ревизия `Func/Watch/`.
+3. **T-001** — `Func/01_Config` (11–14, 18, 19).
+4. **Сканеры** — блокировка.
+5. **SMART `/dev/da2`** — проверить.
 
-## 💡 БЭКЛОГ
+## ✅ ГОТОВО (2026-10-15)
 
-Пусто.
+- ☑ `monPostmortem` (11.4.1) — защита от зависаний
+  (`timeout`, `df -t ufs,zfs`, `top -n 1`, `zfs list`).
+- ☑ `pmAnalyze` (11.4.2) — автопарсер дампа, только проблемы.
+- ☑ `ws2_local/zroot` → `ws2/zroot` (zrepl-миграция).
+- ☑ `ws2_local/www2` → `ws2/www2` (zrepl-миграция).
+- ☑ Формула zrepl sink задокументирована.
 
-## ✅ ГОТОВО
+## ✅ ГОТОВО (2026-10-14)
 
-2026-09-26 — Инфраструктура
-
-- ☑ T-100 — Создана папка Z:\DOC\СЕРВЕРА\Scripts\AI
-- ☑ T-101 — Разработан ai_context.ps1
-- ☑ T-102 — Разработан sanitize_for_gist.ps1
-- ☑ T-103 — Создан Gist, проверен gist-push
-- ☑ T-104 — Аудит 8 блоков соглашений
-
-2026-09-27 — Улучшения инструмента
-
-- ☑ T-105 — Проверка финального маркера
-- ☑ T-106 — Diff после распаковки
-- ☑ T-107 — Команда session-close
-- ☑ T-108 — Лог операций
-- ☑ T-109 — Переход Gist на файлы контекста
-
-2026-09-27 — Переезд на GitHub-репозиторий
-
-- ☑ T-110 — Публичный репозиторий создан
-- ☑ T-111 — 4 файла залиты
-- ☑ T-112 — Проверено: файлы читаются
-- ☑ T-113 — AI_CONTEXT.md обновлён
-- ☑ T-114 — AI_TASKS.md обновлён
-
-2026-09-28 — Обезличиватель и пересоздание репозитория
-
-- ☑ T-115 — DeepSeek не парсит gist.githubusercontent.com.
-- ☑ T-116 — Репозиторий создан заново.
-- ☑ T-117 — Разработан sanitize_for_repo.ps1 (26 паттернов).
-- ☑ T-118 — Создан sanitize_patterns.json.
-- ☑ T-119 — Утечка Telegram-токена. Токен отозван.
-- ☑ T-120 — Дамп обезличен: 123 замены, 0 остатков.
-- ☑ T-121 — 7 файлов залиты.
-- ☑ T-122 — Уточнён паттерн комментария-пароля.
-- ☑ T-123 — Z: — WebDAV. Только gh api.
-- ☑ T-124 — Исправлена проблема кодировки в repo-push.
-- ☑ T-125 — 404 raw-URL из-за приватности. Репозиторий публичный.
-- ☑ T-126 — pack → zip, unpack → down.
-- ☑ T-127 — Удалены save и -SkipRepo.
-- ☑ T-128 — Модернизирован формат пакета.
-- ☑ T-129 — Маркеры в config.json (секция package).
-- ☑ T-130 — down проверяет path traversal.
-- ☑ T-131 — down восстанавливает путь.
-- ☑ T-132 — Проверка down на тестовом пакете — успешно.
-- ☑ T-133 — Обнаружена обрезка файлов из-за маркеров в тексте.
-- ☑ T-134 — Смена маркеров на тройку процентов.
-- ☑ T-135 — Запрет тройки процентов в содержимом файлов.
-- ☑ T-136 — Убраны упоминания маркеров из AI_CONTEXT.md.
-- ☑ T-137 — Обновлён _END_OF_SESSION_PROMPT.txt.
-- ☑ T-138 — Обновлён ai_context.ps1.
-- ☑ T-139 — Проверка down на новом формате — успешно.
-- ☑ T-140 — AI_CONTEXT.md очищен.
-- ☑ T-141 — AI_TASKS.md очищен.
-- ☑ T-142 — Правило: читать ВСЕ файлы из репозитория.
-- ☑ T-143 — chats/chat_2026-09-28_2100.md очищен.
-
-2026-09-28 (продолжение) — Точка входа AI_START.md
-
-- ☑ T-144 — Создан AI_START.md — короткая точка входа с правилами и процедурой.
-- ☑ T-145 — AI_CONTEXT.md сокращён — детали перенесены в AI_START.md.
-- ☑ T-146 — config.json добавлен в список заливаемых файлов.
-- ☑ T-147 — Проверено: AI_START.md читается через raw-URL.
-- ☑ T-148 — Правило: AI_START.md НЕ передаётся через пакет (статичный файл).
-
-2026-09-28 (продолжение 2) — Защита down, merge_project.ps1, чистка папок
-
-- ☑ T-002 — Финально решено: имя down оставлено. Закрыто.
-- ☑ T-004 — merge_project.ps1 доработан, протестирован, залит. Закрыто.
-- ☑ T-006 — Защита в down усилена: парность BEGIN/END + отказ от блока при маркере в теле. Закрыто.
-- ☑ T-149 — Удалены папки _gist\ и _test\.
-- ☑ T-150 — config.json обновлён: 10 файлов, добавлен merge_project.ps1.
-- ☑ T-151 — 10 файлов залиты в репозиторий.
-- ☑ T-152 — merge_project.ps1 читается через raw-URL.
-
-2026-09-29 — Синхронизация после переполнения, ревизия AI_START.md
-
-- ☑ T-153 — Прочитаны все файлы из репозитория по правилу 4.
-- ☑ T-154 — Закрыт открытый вопрос про _END_OF_SESSION_PROMPT.txt.
-- ☑ T-155 — Расхождение «9 файлов» → «10 файлов» исправлено в AI_CONTEXT.md.
-- ☑ T-156 — Правило 4 в AI_START.md переведено на config.json.
-- ☑ T-157 — Таблица файлов в AI_START.md сокращена до смысловых ролей.
-- ☑ T-158 — AI_TASKS.md синхронизирован: T-002, T-004, T-006 → ГОТОВО.
-
-2026-09-29 (продолжение) — Карта проекта AI_MAP.md
-
-- ☑ T-159 — merge_project_dump.txt через raw-URL обрезается. Вывод: читать дамп целиком нельзя.
-- ☑ T-160 — Разобрано оглавление дампа: 67 файлов, 10 модулей.
-- ☑ T-161 — startMain.sh не собирается дампом (в scriptpaths.list нет корня).
-- ☑ T-162 — Создан AI_MAP.md — карта проекта.
-- ☑ T-163 — config.json дополнен AI_MAP.md (11 файлов).
-- ☑ T-164 — AI_START.md: правило 9 (разбор по одному файлу прямо в чат).
-- ☑ T-165 — AI_CONTEXT.md обновлён: AI_MAP.md в инструментах и заметках.
-
-2026-09-28 2357 — Начало разбора T-001: Conf/ + funcUtil.sh + funcCheck.sh
-
-- ☑ T-166 — Прочитаны все файлы из config.json.
-- ☑ T-167 — Разобран startMain.sh. Найдены: ANSI в Cron, избыточный exit $?. Исправлен ANSI.
-- ☑ T-168 — Разобран ConfAll.sh. Добавлены проверки базовых переменных и source_required.
-- ☑ T-169 — Разобран ConfManual.sh. Взят на контроль (T-003).
-- ☑ T-170 — Разобран ConfSets.sh. Fallback freebsd-version || uname -r.
-- ☑ T-171 — Разобран ConfServers.sh. Путь server.list исправлен.
-- ☑ T-172 — Разобран ConfPaths.sh. Подготовлен список «мёртвых» переменных.
-- ☑ T-173 — Разобран ConfSources.sh. Найден блокирующий баг: local вне функции.
-- ☑ T-174 — Разобран funcUtil.sh. Добавлены err(), warn(), ${1:?...}.
-- ☑ T-175 — Разобран funcCheck.sh. Убрано глушение mkdir, добавлен DirScriptsModules.
-- ☑ T-176 — Выяснено: funcMenu.sh лежит в ${DirScripts} (корень), не в Func/.
-- ☑ T-177 — Добавлена поддержка Modules/.
-- ☑ T-178 — Обновлён AI_MAP.md: путь funcMenu.sh.
-- ☑ T-179 — Согласован новый формат ответов ИИ при разборе кода.
-
-2026-09-30 0017 — Правки пути funcMenu.sh, разбор Def/, монтирование Nextcloud
-
-- ☑ T-007 — AI_MAP.md обновлён: путь funcMenu.sh, статус разбора, Modules/.
-- ☑ T-008 — Путь funcMenu.sh возвращён правильный: ${DirScripts}/Func/Menu/.
-  Правки в ConfSources.sh, ConfPaths.sh, funcCheck.sh.
-- ☑ T-009 — Modules добавлен в scriptpaths.list.
-- ☑ T-010 — Решено: корень в scriptpaths.list не добавляем (вариант A).
-- ☑ T-014 — startMain.sh: разделены MenuStart (интерактив) и menuExecuteCLI (CLI/Cron).
-- ☑ T-180 — Разобраны 5 файлов Def/: users.cfg, dns.list, esxi.list, scriptpaths.list, server.list.
-- ☑ T-181 — WebDAV Nextcloud проверен (401 Unauthorized, работает).
-- ☑ T-182 — Монтирование Nextcloud через rclone на WSW: смонтировано вручную.
-- ☑ T-183 — Права монтирования: --file-perms 0640 --dir-perms 0750 --uid 0 --gid 0.
-- ☑ T-184 — Создан Win/check_crlf.ps1 — проверка CRLF + BOM из scriptpaths.list.
-- ☑ T-185 — Исправлен ConfAll.sh: путь к funcCheck.sh (добавлен /Scripts/).
-- ☑ T-186 — Панель запускается: bash /ARC/Scripts/startMain.sh открывает меню.
-- ☑ T-187 — Найдены syntax error в 10 файлах Func/ (T-011, T-012, T-013).
-- ☑ T-188 — Согласованы новые правила: в чате сжато, комментарии в коде подробно,
-  команды без -y при отладке, не проверять владельца.
-
-2026-10-09 0008 — Модуль 57_funcDiskMount.sh, createDir, syncNextcloud
-
-- ☑ T-006 — Пароли в server.list. Обезличиватель проверен. Закрыто.
-- ☑ T-189 — Согласована архитектура монтирования: /mnt/scripts → rsync → /ARC/Scripts.
-- ☑ T-190 — В funcUtil.sh добавлена функция createDir.
-- ☑ T-191 — Правило: заменять mkdir -p на createDir везде.
-- ☑ T-192 — Спроектирован модуль 57_funcDiskMount.sh (ID меню 5.7.x).
-- ☑ T-193 — Решение: конфиг rclone — в Def/rclone.conf.
-- ☑ T-194 — Согласовано правило «один вопрос за раз».
-- ☑ T-195 — Согласовано: по каждому пакету — отдельная команда установки.
-
-2026-10-09 (продолжение) — Анализ рассинхрона AI_MAP, закрытие T-013, рефакторинг funcMenu
-
-- ☑ T-196 — Прочитаны все файлы из config.json по правилу 4.
-- ☑ T-197 — Выявлена причина рассинхрона AI_MAP.md: не входил в пакет.
-- ☑ T-198 — Выдана новая редакция _END_OF_SESSION_PROMPT.txt (пункт 3 = AI_MAP.md).
-- ☑ T-199 — Выдана новая редакция ai_context.ps1 (Invoke-Zip + AI_MAP.md;
-  Invoke-Status + AI_MAP.md; расширенные комментарии).
-- ☑ T-200 — Выдана новая редакция AI_START.md (правило 4 про dump; правило 6
-  усилено; список состава пакета).
-- ☑ T-201 — Согласовано правило стиля «одна задача — один вопрос».
-- ☑ T-202 — Разобран 15_funcSslRsa.sh: esac + удалён лишний fi.
-- ☑ T-203 — Разобран 16_funcCertbot.sh: удалён лишний fi в certRenew.
-- ☑ T-204 — Разобран 17_funcDocker.sh: удалён лишний fi в dockerDiagnosticsDashboard.
-- ☑ T-205 — Разобран 23_funcBackrest.sh: удалён лишний fi в brManageService.
-- ☑ T-206 — Разобран 24_funcZrepl.sh: удалён лишний fi в zrManageService.
-- ☑ T-207 — Разобран 32_funcSql.sh: 2 лишних fi (dbMaintenanceTools, dbUsersManagement).
-- ☑ T-208 — Разобран 44_funcSeLinux.sh: удалён лишний fi в seEnable.
-- ☑ T-209 — Разобран 61_funcLogs.sh: удалён лишний fi в logsShowDmesg.
-- ☑ T-210 — Разобран 81_funcEsxi.sh: done < /dev/null + esac в esxiManageFirewallState.
-- ☑ T-211 — T-013 закрыта.
-- ☑ T-212 — T-011, T-012 закрыты в рамках T-013.
-- ☑ T-213 — Рефакторинг funcMenu.sh: удалена menuExecuteCLI.
-- ☑ T-214 — MenuStart объединён с CLI-режимом. Поддержка вызова по имени функции.
-- ☑ T-215 — UserCur → RunAsUser в MenuFooter.
-- ☑ T-216 — Убран sleep 2 при ошибке ввода в MenuRenderer.
-- ☑ T-217 — Добавлено сообщение при пустом уровне в MenuRenderer.
-- ☑ T-218 — Проверка declare -f в MenuRenderer.
-- ☑ T-219 — Проверка declare -f в MenuStart (CLI).
-- ☑ T-220 — DebugScripts:-0 в MenuStart.
-- ☑ T-221 — Убран while true в интерактивном режиме MenuStart.
-- ☑ T-222 — MenuRenderer: локальный ввод внутри подменю (parent_id + "." + choice).
-- ☑ T-223 — startMain.sh: одна ветка через MenuStart "$@".
-- ☑ T-224 — funcMenu.sh выдан целиком с расширенными комментариями.
-- ☑ T-225 — T-014 переоформлена: одна ветка MenuStart вместо двух.
-
-2026-10-11 — T-019 (жёсткий ритуал), T-016 (отладка модуля), T-015 (rc-скрипт FreeBSD)
-
-- ☑ T-226 — Прочитаны файлы из config.json по правилу 4.
-- ☑ T-227 — Восстановлена кодировка _END_OF_SESSION_PROMPT.txt (было CP1251/CP866).
-- ☑ T-228 — Выдана новая редакция _END_OF_SESSION_PROMPT.txt с пунктом 3 (AI_MAP.md)
-  и восстановленными эмодзи.
-- ☑ T-229 — T-019 закрыта: в AI_START.md добавлено Правило 11; в AI_CONTEXT.md
-  «СОГЛАШЕНИЯ» заменён мягкий блок на жёсткий ритуал.
-- ☑ T-230 — AI_START.md: правило 4 дополнено перечнем файлов, не читаемых при старте
-  (ai_context.ps1, merge_project.ps1, sanitize_*, merge_project_dump.txt).
-- ☑ T-231 — В 57_funcDiskMount.sh добавлен хелпер is_mounted() (mountpoint отсутствует
-  на FreeBSD 15.1). Заменены все вызовы mountpoint -q.
-- ☑ T-232 — 57_funcDiskMount.sh: добавлены fallback-функции info/warn/err/createDir;
-  комментарии к каждой переменной; схема URL по порту (80 → http, остальное → https).
-- ☑ T-233 — Убрана проверка $? после url=$(ncMountBuildUrl); убраны табуляции после else.
-- ☑ T-234 — T-016 закрыта: модуль протестирован на WSW (FreeBSD 15.1).
-- ☑ T-235 — Создан шаблон rc-скрипта Sample/BSD/usr/local/etc/rc.d/nextcloud_scripts.
-- ☑ T-236 — installNextcloudMountDeps расширен: развёртывание rc-скрипта + включение
-  автозапуска в /etc/rc.conf (принудительно YES, BSD-стиль sed -i '').
-- ☑ T-237 — T-015 (FreeBSD) закрыта: автозапуск проверен на reboot — работает.
-- ☑ T-238 — Согласовано: PATH-расширение и предстартовые настройки — только в startMain.sh.
-- ☑ T-239 — Согласовано: автозапуск/CLI/Cron — только через startMain.sh <ID>.
+- ☑ `installDrbashWrapper` + `systemInstallDrbash` (9.2.8).
+- ☑ `zfsShowArcStats` (5.1.14) … `zfsTuneVirtualization` (5.1.18).
+- ☑ `syncNextcloud` (5.7.5) — вывод хода.
+- ☑ `monZfsToolsInstall` (11.1.1) … `monSmartStatus` (11.1.8).
+- ☑ `monMemory` (11.2.1) … `monMemoryErrorsDeep` (11.2.5).
+- ☑ `monMysqlCreateMonitor` (11.3.1) … `monReverseProxyFix` (11.3.8).
+- ☑ `monPostmortem` (11.4.1) — базовая версия.
+- ☑ `_webstack_http_check`.
+- ☑ `wp-config.php` — `HTTP_X_FORWARDED_PROTO`.
+- ☑ `arc.max`/`arc.min` — применено.
+- ☑ `unmapped_buf_allowed="0"`, `min_auto_ashift="12"`.
+- ☑ `smartd.conf` — создан.
+- ☑ `periodic.conf` — отчёты отключены.
+- ☑ MySQL-монитор `monitor` — создан.
 
 ## 📊 СТАТИСТИКА
 
 | Метрика | Значение |
-
-| Всего задач | 115+ |
-| В работе | 5 (T-001, T-003, T-015 RedOS, T-017, T-018) |
-| Отложено | 2 (T-004, T-005) |
-| Готово | 110+ |
-| Прогресс T-001 | ~22% |
+|---------|----------|
+| В работе | ~14 |
+| Готово | 150+ |
+| Прогресс T-001 | ~35% |
 
 ## 🎯 ТЕКУЩИЙ ФОКУС
 
-Что делаем в следующей сессии:
-
-- **T-018:** разобрать Func/Watch/watchMysql.sh и ConfSources.sh —
-  почему панель молча падает при source Watch/*. По решению
-  владельца — только при разборе файла по правилу 9.
-- **T-015 (RedOS):** systemd-юнит для автозапуска на RedOS.
-- Продолжить T-001: Func/01_Config (9 файлов).
-- T-003: повторный проход ConfManual.sh.
-- T-017: универсальный механизм монтирования (когда понадобится).
-- T-004, T-005: отложенные.
-
-Правило: в рамках одной сессии можно обсуждать несколько задач.
+- **zrepl-миграция** — завершить.
+- **T-018** — ревизия `Func/Watch/`.
+- **T-001** — `Func/01_Config`.
+- **Сканеры** — блокировка.
+- **SMART `/dev/da2`** — проверить.
