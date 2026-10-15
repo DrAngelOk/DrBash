@@ -1,261 +1,146 @@
 # AI MAP — DrAngelOk/DrBash
 
 Карта проекта: структура, модули, связи, статус разбора.
-Читается перед разбором кода (T-001).
 
 ## 🗺 Точка входа
 
 startMain.sh — единственная точка входа, в корне проекта.
-Не собирается дампом (в scriptpaths.list нет корня).
 
 Цепочка запуска:
 
     startMain.sh
       → Conf/ConfAll.sh
-        → Conf/ConfManual.sh   (ручные настройки: имена, пароли, флаги)
-        → Conf/ConfSets.sh     (детекция ОС, дата)
-        → Conf/ConfServers.sh  (парсер server.list)
-        → Conf/ConfPaths.sh    (карта путей)
-        → Func/Scripts/funcCheck.sh  (создание папок)
-        → Conf/ConfSources.sh  (автоподключение модулей)
-          → Func/Menu/funcMenu.sh    (ядро меню)
-          → Func/**/*.sh             (все модули)
-          → Modules/**/*.sh          (пользовательские модули)
-          → Test/**/*.sh             (тестовые модули)
+        → Conf/ConfManual.sh
+        → Conf/ConfSets.sh
+        → Conf/ConfServers.sh
+        → Conf/ConfPaths.sh
+        → Conf/ConfResticClients.sh
+        → Func/Scripts/funcCheck.sh
+        → Conf/ConfSources.sh
+          → Func/Menu/funcMenu.sh
+          → Func/**/*.sh
+          → Modules/**/*.sh
+          → Test/**/*.sh
 
 ## 📁 Структура
 
-### Conf/ — конфигурация (6 файлов)
+### Conf/ — конфигурация (7 файлов)
 
 | Файл | Назначение |
-
-| ConfAll.sh | Главный управляющий диспетчер |
-| ConfManual.sh | Ручные настройки: имена, пароли, флаги |
-| ConfPaths.sh | Карта путей и точек монтирования |
+|------|-----------|
+| ConfAll.sh | Главный диспетчер |
+| ConfManual.sh | Ручные настройки |
+| ConfPaths.sh | Карта путей |
 | ConfServers.sh | INI-парсер server.list |
 | ConfSets.sh | Системные настройки, детекция ОС |
 | ConfSources.sh | Автоподключение модулей |
+| ConfResticClients.sh | INI-парсер restic_clients.list |
 
-### Def/ — списки (5 файлов, ДАННЫЕ, не код)
+### Def/ — списки (6 файлов)
 
-| Файл | Назначение |
-
-| dns.list | Домены |
-| esxi.list | Хосты ESXi, датасторы |
-| scriptpaths.list | Манифест подпапок для дампа |
-| server.list | Параметры серверов (INI), содержит пароли |
-| users.cfg | Пользователи (CSV) |
+dns.list, esxi.list, scriptpaths.list, server.list, users.cfg,
+restic_clients.list.
 
 ### Func/01_Config/ — конфигурация (9 файлов)
 
-| Файл | Назначение |
-
-| 11_funcNet.sh | Сеть: hostname, IP, шлюз |
-| 12_funcUsers.sh | Пользователи, sudo, безопасность |
-| 13_funcSsh.sh | SSH |
-| 14_funcRsync.sh | Rsync |
-| 15_funcSslRsa.sh | SSL/RSA |
-| 16_funcCertbot.sh | Certbot |
-| 17_funcDocker.sh | Docker |
-| 18_funcPhp.sh | PHP |
-| 19_funcCyrillic.sh | Кириллица |
+| Файл | Статус |
+|------|--------|
+| 11_funcNet.sh | не начато |
+| 12_funcUsers.sh | не начато |
+| 13_funcSsh.sh | не начато |
+| 14_funcRsync.sh | не начато |
+| 15_funcSslRsa.sh | ГОТОВО |
+| 16_funcCertbot.sh | ГОТОВО |
+| 17_funcDocker.sh | ГОТОВО |
+| 18_funcPhp.sh | не начато |
+| 19_funcCyrillic.sh | не начато |
 
 ### Func/02_Backup/ — бэкапы (8 файлов)
 
-21_funcBackupPc.sh, 22_funcRestic.sh, 23_funcBackrest.sh, 24_funcZrepl.sh, 25_funcSyncMigrate.sh, 26_funcSyncArc.sh, 27_funcSyncRsync.sh, 28_funcSyncZFS.sh.
+| Файл | Статус |
+|------|--------|
+| 21_funcBackupPc.sh | не начато |
+| 22_funcRestic.sh | ГОТОВО |
+| 23_funcBackrest.sh | ГОТОВО |
+| 24_funcZrepl.sh | ГОТОВО |
+| 25_funcSyncMigrate.sh | не начато |
+| 26_funcSyncArc.sh | не начато |
+| 27_funcSyncRsync.sh | не начато |
+| 28_funcSyncZFS.sh | не начато |
 
-### Func/03_Servers/ — серверы (9 файлов)
+### Func/05_Disks/ — диски (6 файлов)
 
-31_funcWeb.sh, 32_funcSql.sh, 33_funcOpenVpn.sh, 35_funcMemcached.sh, 36_funcSamba.sh, 37_funcNfs.sh, 38_funcNextcloud.sh, 39_funcDns.sh.
-
-### Func/04_FW/ — файрвол (3 файла)
-
-41_funcFirewall.sh, 42_funcFirewall2.sh, 44_funcSeLinux.sh.
-
-### Func/05_Disks/ — диски (5 файлов)
-
-51_funcZFS.sh, 52_funcZpool.sh, 53_funcGpart.sh, 54_funcFiles.sh, **57_funcDiskMount.sh (отлажен 2026-10-11)**, 58_funcDiskClone.sh.
+| Файл | Статус |
+|------|-------|
+| 51_funcZFS.sh | ГОТОВО |
+| 52_funcZpool.sh | ГОТОВО |
+| 53_funcGpart.sh | ГОТОВО |
+| 54_funcFiles.sh | ГОТОВО |
+| 57_funcDiskMount.sh | ГОТОВО |
+| 58_funcDiskClone.sh | ГОТОВО |
 
 ### Func/06_Logs/ — логи (3 файла)
 
-61_funcLogs.sh, 62_funcTelegram.sh, 66_funcJournalctl.sh.
-
-### Func/07_Mon/ — мониторинг (9 файлов)
-
-71_funcMon.sh, 72_funcMonAtop.sh, 73_funcMonMytop.sh, 74_funcMonApache.sh, 75_funcMonApachetop.sh, 76_funcMonGoaccess.sh, 77_funcMonIotop.sh, 78_funcMonNet.sh, 79_funcMonIftop.sh.
-
-### Func/08_VM/ — виртуализация (2 файла)
-
-81_funcEsxi.sh, 82_funcVmTools.sh.
+| Файл | Статус |
+|------|--------|
+| 61_funcLogs.sh | ГОТОВО |
+| 62_* | не начато |
+| 63_* | не начато |
 
 ### Func/09_System/ — система (4 файла)
 
-91_funcPreInstall.sh, 92_funcSystem.sh, 93_funcInstall.sh, 99_funcUpdate.sh.
+| Файл | Статус |
+|------|--------|
+| 91_funcPreInstall.sh | не начато |
+| 92_funcSystem.sh | ГОТОВО (9.2.1–9.2.8) |
+| 93_funcInstall.sh | не начато |
+| 99_funcUpdate.sh | не начато |
 
-### Func/10_Sites/ — сайты (2 файла)
+### Func/11_Check/ — мониторинг
 
-101_funcWordPress.sh, 102_funcSiteMonit.sh.
-
-### Func/Menu/ — функции меню
-
-funcMenu.sh — ядро интерфейса, MenuRegister, MenuStart (единая точка
-входа — интерактив и CLI/Cron). Подключается в ConfSources.sh
-через переменную DirScriptsMenu (= ${DirScripts}/Func/Menu).
+| Файл | Функции | Статус |
+|------|---------|--------|
+| 11_funcMonZfs.sh | 11.1.1–11.1.8 | ГОТОВО |
+| 11_funcMonMemory.sh | 11.2.1–11.2.5 | ГОТОВО |
+| 11_funcMonWebStack.sh | 11.3.1–11.3.8 | ГОТОВО |
+| 113_funcCheckBSD.sh | 11.4.1 | ГОТОВО |
+| 114_funcPostMortem.sh | 11.4.1, 11.4.2 | ГОТОВО (15.10) |
 
 ### Func/Scripts/ — утилиты (2 файла)
 
-| Файл | Назначение |
+funcCheck.sh, funcUtil.sh (`createDir`, `source_required`,
+`installDrbashWrapper`, fallback `logsMsg`).
 
-| funcCheck.sh | Создание папок |
-| funcUtil.sh | source_required, err, warn, createDir |
+### Func/Watch/ — наблюдение (T-018, статус неизвестен)
 
-### Func/Watch/ — мониторинговые раннеры
-
-Отдельная папка, содержит исполняемые скрипты (watchMysql.sh и др.),
-которые выполняются при source. См. T-018.
-
-### Sample/ — шаблоны для копирования
-
-Шаблоны конфигов и скриптов для развёртывания на целевые пути
-(например, rc-скрипт автозапуска Nextcloud).
-
-### Modules/ — пользовательские модули
-
-Модули на основе функций. Автоподключаются в ConfSources.sh (ПУНКТ 3).
-Создаётся в funcCheck.sh. Переменная: ${DirScriptsModules}.
+Требуется ревизия: что внутри, что уже перенесено в 11_Check
+(например, `watchMysql.sh` → `monMysql`).
 
 ## 🔗 Связи
 
 - Все модули регистрируются через MenuRegister.
-- Диспетчер запуска: MenuStart (Func/Menu/funcMenu.sh) — и интерактив,
-  и CLI/Cron. Поддерживает вызов по цифровому ID и по имени функции.
-- Двухплатформенность: ${OSType} (RedOS / FreeBSD).
-- Модули пронумерованы: 01_Config … 10_Sites.
-- Файлы внутри модулей: NN_funcName.sh.
-- Ввод в меню локальный: внутри подменю пользователь вводит локальный
-  ID, полный ID собирается как parent_id + "." + choice.
-- **Единая точка входа:** любой запуск (интерактив, CLI, cron,
-  автозапуск через rc/systemd) — через `startMain.sh <ID>`.
-  Модули напрямую не вызываются.
-- **PATH-расширение:** только в `startMain.sh`. Не дублировать
-  в rc-скриптах / systemd-юнитах.
-
-## ⚠️ Найденные проблемы
-
-### Исправлено в 2026-09-28 2357
-
-- ConfSources.sh: local вне функции — исправлено (циклы вынесены в функции).
-- ConfServers.sh: путь server.list через ${DirMain:-/ARC/_Scripts} — исправлено на ${DirScripts}.
-- funcCheck.sh: глушение mkdir 2>/dev/null — исправлено (warn при провале).
-- ConfSets.sh: freebsd-version без fallback — исправлено.
-- ConfAll.sh: нет проверки базовых переменных — добавлено.
-- ANSI в выводе — заменено на err()/warn().
-- Добавлена поддержка Modules/ (DirScriptsModules, сканирование, создание).
-
-### Исправлено в 2026-09-30 0017
-
-- ConfSources.sh: путь funcMenu.sh через ${DirScriptsMenu}.
-- ConfPaths.sh: DirScriptsMenu = ${DirScripts}/Func/Menu.
-- funcCheck.sh: ${DirScriptsMenu} добавлен в paths_to_check.
-- startMain.sh: MenuStart/MenuExecuteCLI разделены (T-014).
-- ConfAll.sh: путь к funcCheck.sh (добавлен /Scripts/).
-
-### Исправлено в 2026-10-09 (продолжение)
-
-- **T-013 (закрыто).** 9 файлов с syntax error:
-  - 15_funcSslRsa.sh — `esac` + удалён лишний `fi` в sslAuditDashboard.
-  - 16_funcCertbot.sh — удалён лишний `fi` в certRenew.
-  - 17_funcDocker.sh — удалён лишний `fi` в dockerDiagnosticsDashboard.
-  - 23_funcBackrest.sh — удалён лишний `fi` в brManageService.
-  - 24_funcZrepl.sh — удалён лишний `fi` в zrManageService.
-  - 32_funcSql.sh — 2 лишних `fi` (dbMaintenanceTools, dbUsersManagement).
-  - 44_funcSeLinux.sh — удалён лишний `fi` в seEnable.
-  - 61_funcLogs.sh — удалён лишний `fi` в logsShowDmesg.
-  - 81_funcEsxi.sh — `done /dev/null` → `done < /dev/null` +
-    `esac` в esxiManageFirewallState.
-- **T-012 (закрыто).** 81_funcEsxi.sh: done /dev/null — исправлено.
-- **T-011 (закрыто).** 12_funcUsers.sh: case/fi — в логе не появлялся.
-- **funcMenu.sh — рефакторинг.** Удалена `menuExecuteCLI`
-  (обращалась к несуществующему массиву `MenuRegFuncs`). Все вызовы
-  CLI/Cron идут через `MenuStart`.
-- **startMain.sh — рефакторинг.** Хвост сведён к одной ветке
-  через `MenuStart "$@"`.
-- **MenuFooter:** `${UserCur}` → `${RunAsUser}`.
-
-### Исправлено в 2026-10-11
-
-- **T-019 (закрыто).** Правило стиля «одна задача — один вопрос»
-  стало жёстким ритуалом:
-  - В `AI_START.md` — добавлено Правило 11.
-  - В `AI_CONTEXT.md` → «СОГЛАШЕНИЯ» — заменён старый мягкий блок
-    на жёсткий.
-  - В `AI_START.md` правило 4 дополнено перечнем файлов, которые
-    не читать при старте.
-- **T-016 (закрыто).** 57_funcDiskMount.sh отлажен:
-  - Заменены все `mountpoint -q` на хелпер `is_mounted()` (утилита
-    отсутствует на FreeBSD 15.1).
-  - Добавлены fallback-функции `info`/`warn`/`err`/`createDir`.
-  - Комментарии к каждой переменной в блоке конфигурации.
-  - Схема URL по порту (80 → http, остальное → https).
-  - Убрана проверка `$?` после `url=$(ncMountBuildUrl)`.
-- **T-015 (FreeBSD, закрыто).** Автозапуск монтирования:
-  - Шаблон: `Sample/BSD/usr/local/etc/rc.d/nextcloud_scripts`.
-  - Целевой путь: `/usr/local/etc/rc.d/nextcloud_scripts`.
-  - `installNextcloudMountDeps` разворачивает rc-скрипт и включает
-    автозапуск в `/etc/rc.conf`.
-  - Автозапуск проверен на reboot — работает.
-- **_END_OF_SESSION_PROMPT.txt** — выдана новая редакция с пунктом 3
-  (AI_MAP.md) и восстановленными эмодзи.
-
-### Актуально
-
-- ConfManual.sh: устаревшие данные, `SyncroSrv` без `else`, дублирование
-  `SRVNeedName`/`SyncSRV`, `DebugScripts` без читателя (T-003).
-- ConfPaths.sh: потенциально мёртвые переменные `DirMainDock`,
-  `DirMainConfigDef` (T-005).
-- funcUtil.sh: `source_required` не проверяет код возврата source (T-004).
-- server.list: пароли в открытом виде — обезличиватель ловит, действий
-  не требуется (T-006, закрыто).
-- startMain.sh не собирается дампом — в scriptpaths.list нет корня.
-  Точку входа смотреть отдельно.
-- 7 файлов в CP1251 (битые кодировки):
-  - Conf/ConfManual.sh
-  - Def/esxi.list
-  - Def/server.list
-  - Def/users.cfg
-  - Func/05_Disks/51_funcZFS.sh
-  - Func/07_Mon/71_funcMon.sh
-  - Func/Scripts/funcCheck.sh
-- **T-018 (новая):** Func/Watch/watchMysql.sh содержит `exit 1`, который
-  при `source` из `ConfSources.sh` убивает панель. Симптом: молчаливый
-  выход после детекции ОС. Не трогать до разбора файла по правилу 9.
-- **T-017 (новая):** универсальный механизм монтирования нескольких
-  папок (когда понадобится вторая папка).
-- **T-015 RedOS:** systemd-юнит для автозапуска — не доделано.
-- **Особенность FreeBSD 15.1:** утилита `mountpoint` отсутствует.
-  Использовать `mount | grep` или хелпер `is_mounted`.
+- Диспетчер: MenuStart.
+- Двухплатформенность: ${OSType}.
+- Единая точка входа: `startMain.sh <ID>`.
+- Единый логгер — `logsMsg`.
+- **HTTP-проверка:** `_webstack_http_check`.
+- **zrepl sink:** путь = `root_fs/${client_identity}/${source_path}`.
 
 ## 📊 Статус разбора T-001
 
-| Модуль | Файлов | Разобрано | Статус |
+| Модуль | Разобрано | Статус |
+|--------|-----------|--------|
+| startMain.sh | 1/1 | готово |
+| Conf/ | 7/7 | готово |
+| Func/Scripts | 2/2 | готово |
+| Func/Menu | 1/1 | готово |
+| Func/05_Disks | 6/6 | ГОТОВО |
+| Func/06_Logs | 1/3 | 61 готов |
+| Func/09_System | 1/4 | 92 готов |
+| Func/11_Check | 11.1.x–11.4.2 | ГОТОВО |
+| Func/01_Config | 3/9 | частично |
+| Func/02_Backup | 3/8 | 22, 23, 24 |
+| Func/Watch | ? | требует ревизии |
+| Остальные Func/ | 0 | не начато |
 
-| startMain.sh | 1 | 1 | готово |
-| Conf/ | 6 | 6 | готово |
-| Func/Scripts | 2 | 2 | готово |
-| Func/Menu/funcMenu.sh | 1 | 1 | готово (отрефакторен) |
-| Func/05_Disks/57_funcDiskMount.sh | 1 | 1 | готово (отлажен) |
-| Def/ | 5 | 5 | структура разобрана |
-| Func/01_Config | 9 | 0 | не начато |
-| Func/02_Backup | 8 | 0 | не начато |
-| Func/03_Servers | 9 | 0 | не начато |
-| Func/04_FW | 3 | 0 | не начато |
-| Func/05_Disks (без 57) | 4 | 0 | не начато |
-| Func/06_Logs | 3 | 0 | не начато |
-| Func/07_Mon | 9 | 0 | не начато |
-| Func/08_VM | 2 | 0 | не начато |
-| Func/09_System | 4 | 0 | не начато |
-| Func/10_Sites | 2 | 0 | не начато |
-| Func/Watch | ? | 0 | не начато (T-018) |
-| Modules/ | ? | 0 | не начато |
-
-Итого: 67+ файлов, разобрано 11.
+Итого: ~30 файлов разобрано.
