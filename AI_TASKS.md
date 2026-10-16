@@ -5,9 +5,11 @@
 □ **zrepl-миграция структуры приёмника (WS2)** — ЗАВЕРШИТЬ.
 - ☑ `ws2_local/zroot` → `ws2/zroot` (СДЕЛАНО)
 - ☑ `ws2_local/www2` → `ws2/www2` (СДЕЛАНО)
-- □ `ws2_local/BS07_MY` → `ws2/BS07_MY` (2.32T, send/recv)
-- □ `wsw/wsw/zroot` → `wsw/zroot` (252G, send/recv)
-- □ Снять `@migrate` со всех перенесённых
+- ☑ `ws2_local/BS07_MY/ws2_local/BS07_MY` → `ws2/BS07_MY` (2.03T) (СДЕЛАНО)
+- □ `wsw/wsw/zroot` → `wsw/zroot` (252G) — НЕ ЗАПУЩЕНО
+  - `@migrate` на `wsw/wsw/zroot` — есть
+  - команда: `zfs send -R -s BS07_MY/ZREPL/wsw/wsw/zroot@migrate | zfs recv -F -s BS07_MY/ZREPL/wsw/zroot`
+- □ Снять `@migrate` со всех новых датасетов
 - □ Destroy `BS07_MY/ZREPL/ws2_local` (recursive)
 - □ Destroy `BS07_MY/ZREPL/wsw/wsw` (recursive, родитель `wsw` оставить)
 - □ Правка `zrepl.yml` на WS2:
@@ -79,19 +81,26 @@ TCP-сессия идёт, SSH-баннер не приходит. `UseDNS no`, 
 
 ## ⏳ СЛЕДУЮЩЕЕ
 
-1. **zrepl-миграция** — завершить (`BS07_MY`, `wsw`, destroy, конфиг).
+1. **zrepl-миграция** — завершить (`wsw`, `@migrate`, destroy, конфиг).
 2. **T-018 (расширено)** — ревизия `Func/Watch/`.
 3. **T-001** — `Func/01_Config` (11–14, 18, 19).
 4. **Сканеры** — блокировка.
 5. **SMART `/dev/da2`** — проверить.
 
+## ✅ ГОТОВО (2026-10-16)
+
+- ☑ `ws2_local/BS07_MY/ws2_local/BS07_MY` → `ws2/BS07_MY` (2.03T).
+- ☑ Диагноз `REFER 297G` на корне `ws2_local/BS07_MY` —
+  артефакт прерванного `zfs receive`.
+- ☑ Обнаружено: `@migrate` на корне не создавался,
+  `zfs snapshot -rn` не поддерживается.
+
 ## ✅ ГОТОВО (2026-10-15)
 
-- ☑ `monPostmortem` (11.4.1) — защита от зависаний
-  (`timeout`, `df -t ufs,zfs`, `top -n 1`, `zfs list`).
-- ☑ `pmAnalyze` (11.4.2) — автопарсер дампа, только проблемы.
-- ☑ `ws2_local/zroot` → `ws2/zroot` (zrepl-миграция).
-- ☑ `ws2_local/www2` → `ws2/www2` (zrepl-миграция).
+- ☑ `monPostmortem` (11.4.1) — защита от зависаний.
+- ☑ `pmAnalyze` (11.4.2) — автопарсер дампа.
+- ☑ `ws2_local/zroot` → `ws2/zroot`.
+- ☑ `ws2_local/www2` → `ws2/www2`.
 - ☑ Формула zrepl sink задокументирована.
 
 ## ✅ ГОТОВО (2026-10-14)
@@ -121,7 +130,7 @@ TCP-сессия идёт, SSH-баннер не приходит. `UseDNS no`, 
 
 ## 🎯 ТЕКУЩИЙ ФОКУС
 
-- **zrepl-миграция** — завершить.
+- **zrepl-миграция** — завершить (`wsw` + конфиг).
 - **T-018** — ревизия `Func/Watch/`.
 - **T-001** — `Func/01_Config`.
 - **Сканеры** — блокировка.
