@@ -9,7 +9,7 @@
 URL: https://github.com/DrAngelOk/DrBash
 Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 Тип: публичный
-Дата последней загрузки: 2026-10-15
+Дата последней загрузки: 2026-10-16
 
 Файлы в репозитории (12 шт.):
 
@@ -126,17 +126,20 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - WSW `zroot` → WS2 (сетевая репликация).
 - WS2 `zroot`/`www2`/`BS07_MY` — локальные push.
 - Префиксы уникализированы.
-- **ВАЖНО (15.10):** в sink-джобах путь формируется как
+- **ВАЖНО:** в sink-джобах путь формируется как
   `root_fs/${client_identity}/${source_path}`. Поэтому `root_fs`
   НЕ должен содержать `client_identity`, иначе получаются дубли
   (`wsw/wsw`, `ws2_local/.../ws2_local`).
-- **15.10:** обнаружена сломанная структура приёмника
-  (`BS07_MY/ZREPL/ws2_local/.../ws2_local`, `.../wsw/wsw`).
-  Идёт миграция в правильную структуру:
+- **zrepl-миграция (15–16.10):** обнаружена сломанная структура
+  приёмника. Идёт миграция в правильную структуру:
   - `ws2_local/zroot` → `ws2/zroot` — СДЕЛАНО
   - `ws2_local/www2` → `ws2/www2` — СДЕЛАНО
-  - `ws2_local/BS07_MY` → `ws2/BS07_MY` — В РАБОТЕ
-  - `wsw/wsw/zroot` → `wsw/zroot` — В РАБОТЕ
+  - `ws2_local/BS07_MY/ws2_local/BS07_MY` → `ws2/BS07_MY` — СДЕЛАНО
+    (2.03T)
+  - `wsw/wsw/zroot` → `wsw/zroot` — НЕ ЗАПУЩЕНО (перенесено)
+- **Диагноз:** корень `ws2_local/BS07_MY` имел `REFER 297G`
+  (артефакт прерванного `zfs receive`), реальных данных нет.
+  `@migrate` был только на глубоком датасете, на корне — нет.
 - **Правка конфига WS2 (после миграции):**
   - `client_identity: ws2_local` → `ws2`
   - `root_fs: BS07_MY/ZREPL` (без последнего сегмента)
@@ -306,16 +309,13 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
   - `df -h` → `timeout 10 df -t ufs,zfs -h` (исключён NFS/rclone).
   - `top -b` → `timeout 10 top -b -n 1`.
   - Все внешние команды обёрнуты в `timeout 10`.
-  - Добавлен `zfs list -t all` для детализации датасетов.
+  - Добавлен `zfs list -t all`.
   - Добавлен `mount` (полный список).
 - `pmAnalyze` (11.4.2) — НОВАЯ функция:
   - Автопарсер свежего дампа, вывод только проблем.
   - `_pm_section` через `grep -n` + `sed` (устойчиво к юникоду).
-  - Проверки: load, TOP, memory, disks (NFS/rclone, переполнение),
-    ZFS pools (errors), ARC (hit rate), D/Z-state (без ядерных
-    потоков), netstat, Apache/PHP-FPM, dmesg/messages, crashes.
-  - Игнорирует `minfree` в `/var/crash/`, ядерные потоки,
-    секцию-заголовок.
+  - Проверки: load, TOP, memory, disks, ZFS pools, ARC, D/Z-state,
+    netstat, Apache/PHP-FPM, dmesg/messages, crashes.
   - Пороги через `ConfManual.sh` (fallback в коде).
 - Обнаружена проблема структуры zrepl-приёмника (формула пути).
 - Начата миграция: `ws2_local/zroot` → `ws2/zroot`,
@@ -324,12 +324,34 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 **Обнаружено:**
 - Формула zrepl sink: `root_fs/${client_identity}/${source_path}`.
 - Неправильные `root_fs` в конфиге WS2 → дубли в структуре.
-- `zrepl.yml` WS2: `root_fs` содержит последний сегмент
-  (`/wsw`, `/ws2_local/zroot`), который потом дублируется.
 
 **Правки конфигов:**
 - (после миграции) WS2 `zrepl.yml` — `root_fs`, `client_identity`.
 - WSW `zrepl.yml` — НЕ трогаем.
+
+### Сессия 2026-10-16 — zrepl-миграция (продолжение)
+
+**Сделано:**
+- `ws2_local/BS07_MY/ws2_local/BS07_MY` → `ws2/BS07_MY` (2.03T) —
+  СДЕЛАНО через `zfs send -R -s | zfs recv -F -s`.
+- Диагноз корня `ws2_local/BS07_MY`: `REFER 297G` — артефакт
+  прерванного `zfs receive`, реальных файлов нет.
+  `@migrate` на корне отсутствовал — есть только на глубоком.
+- Обнаружено, что `zfs snapshot -rn` (dry-run) не поддерживается
+  на FreeBSD.
+- Обнаружено, что `zfs snapshot -r` не сработал на корне
+  (`already exists` на вложенных — норма, корень не создавался).
+
+**Не сделано (перенесено):**
+- `wsw/wsw/zroot` → `wsw/zroot` (252G) — НЕ ЗАПУЩЕНО.
+- Снять `@migrate`.
+- Destroy `ws2_local`, `wsw/wsw`.
+- Правка `zrepl.yml` WS2.
+- Перезапуск zrepl.
+
+**Проверки:**
+- `ws2/BS07_MY` — 2.03T, снапшоты на месте.
+- `wsw/wsw/zroot@migrate` — **есть** (готов к переносу).
 
 ## ❓ ОТКРЫТЫЕ ВОПРОСЫ
 
@@ -346,17 +368,15 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
    `Func/02_Backup` (21, 25–28).
 7. **T-021** — миграция `info`/`warn`/`err` на `logsMsg`.
 8. **T-003** — `ConfManual.sh`.
-9. **T-018 (расширено)** — ревизия `Func/Watch/` (что перенесено,
-   что нет).
+9. **T-018 (расширено)** — ревизия `Func/Watch/`.
 10. **T-015 (RedOS)** — systemd-юнит.
 11. **НОВАЯ** — `server.list` под роли.
 12. **НОВАЯ** — скрипт вкл/выкл ролей.
 13. **НОВАЯ** — `Def/disks.list`.
 14. **НОВАЯ** — `rsInitRepository` от `angelrs`.
 15. **НОВАЯ** — `monPhpFpm` пул не настроен (`pm.status_path`).
-16. **zrepl-миграция** — завершить: `BS07_MY`, `wsw`;
-    снять `@migrate`; destroy `ws2_local`, `wsw/wsw`; правка
-    конфига WS2; перезапуск zrepl.
+16. **zrepl-миграция** — завершить: `wsw`; снять `@migrate`;
+    destroy `ws2_local`, `wsw/wsw`; правка конфига WS2; restart.
 
 ## 🛠 КОМАНДЫ ai_context.ps1
 
@@ -411,6 +431,8 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
   диагностику (пост-мортем).
 - **`timeout` НЕ работает с bash-функциями** — только с бинарниками.
 - **`zrepl sink`: `root_fs` БЕЗ `client_identity`** — иначе дубли.
+- **`zfs send -R` требует снапшот на КОРНЕ дерева**, иначе
+  промежуточные уровни приедут как placeholder'ы.
 
 ## 📁 КОДИРОВКА ФАЙЛОВ
 
