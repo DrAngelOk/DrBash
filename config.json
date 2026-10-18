@@ -36,10 +36,6 @@
       "local": "Z:/DOC/СЕРВЕРА/Scripts/AI/ai_context.ps1"
     },
     {
-      "name": "merge_project_dump.txt",
-      "local": "Z:/DOC/СЕРВЕРА/Scripts/AI/_repo/merge_project_dump.txt"
-    },
-    {
       "name": "sanitize_for_repo.ps1",
       "local": "Z:/DOC/СЕРВЕРА/Scripts/AI/sanitize_for_repo.ps1"
     },
