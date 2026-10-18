@@ -9,7 +9,7 @@
 URL: https://github.com/DrAngelOk/DrBash
 Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 Тип: публичный
-Дата последней загрузки: 2026-10-16
+Дата последней загрузки: 2026-10-18
 
 Файлы в репозитории (12 шт.):
 
@@ -47,18 +47,16 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 
 Карта проекта — в AI_MAP.md.
 
-Статус проекта: идёт первичный разбор кода (T-001).
+Статус проекта: **T-001 (первичный разбор кода) — ЗАКРЫТА (100%)**.
 
 **Разобраны / переработаны в этой и прошлых сессиях:**
 - startMain.sh, Conf/ (7 файлов), Func/Scripts (2 файла),
   Func/Menu/funcMenu.sh, Func/05_Disks/ (6 файлов),
-  Func/01_Config (15, 16, 17),
-  Func/02_Backup/22_funcRestic.sh, 23_funcBackrest.sh,
-  24_funcZrepl.sh.
-
-**Новые модули:**
-- Func/11_Check/ — мониторинг (ZFS, память, веб-стек, пост-мортем).
-- Func/09_System/92_funcSystem.sh — добавлена 9.2.8 (drbash).
+  Func/01_Config (9/9), Func/02_Backup (8/8),
+  Func/06_Logs (3/3), Func/07_Monitoring (9/9),
+  Func/08_ESXi (2/2), Func/09_System (4/4), Func/10_Sites (2/2),
+  Func/11_Check (11.1.x–11.4.2).
+- Func/Watch/ — закрыт (T-018, поглощён модулем 11).
 
 **Серверы (из Def/server.list):**
 - WSW (192.168.1.21, ens160, root, FreeBSD 15.1-RELEASE-p2) —
@@ -105,6 +103,8 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - `--dir-cache-time 10s`, `--poll-interval 5s` — для быстрого
   обнаружения изменений.
 - `syncNextcloud` (5.7.5) — rsync с выводом `-i --stats`.
+- **[FIX] Кэш rclone:** добавлен `NC_CACHE_DIR` и флаг `--cache-dir`
+  (раньше кэш уходил в `/.cache/rclone` — корень zpool).
 
 **dma (mail):**
 - `dma` падает с `stack overflow` (FreeBSD Bug 281936) —
@@ -353,35 +353,96 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - `ws2/BS07_MY` — 2.03T, снапшоты на месте.
 - `wsw/wsw/zroot@migrate` — **есть** (готов к переносу).
 
+### Сессия 2026-10-18 — T-001 (100%), T-018, T-003, ревизия всех модулей
+
+**Закрыто:**
+- **T-001 — первичный разбор кода (100%).** Разобраны/переработаны:
+  - `Func/01_Config/` — 9/9 (11–19).
+  - `Func/02_Backup/` — 8/8 (21–28).
+  - `Func/03_Servers/` — завершено (31–39).
+  - `Func/04_Security/` — завершено (41, 42, 44).
+  - `Func/05_Disks/` — 6/6 (51–58).
+  - `Func/06_Logs/` — 3/3 (61, 62, 66).
+  - `Func/07_Monitoring/` — 9/9 (71–79).
+  - `Func/08_ESXi/` — 2/2 (81, 82).
+  - `Func/09_System/` — 4/4 (91, 92, 93, 99).
+  - `Func/10_Sites/` — 2/2 (101, 102).
+  - `Func/11_Check/` — ГОТОВО (11.1.x–11.4.2).
+- **T-018 — ревизия `Func/Watch/`.** 5 «сырых» файлов поглощены
+  модулем 11. Добавлена `monSystemLoad` (11.2.6), обновлена
+  `monWebStackSummary` (11.3.5) — запись инцидентов.
+- **T-003 — `ConfManual.sh`.** Убраны дубли (Nextcloud, Samba,
+  `WpConfigPath`/`WpTestDir`), устаревшие (`WebStackExternalUrl`,
+  `WebStackLocalHost`), `SRVNeedName="${SRVCurrName}"`,
+  `DirZreplBackup` — export.
+- **T-021 — миграция логгера.** ~98 вызовов `info`/`warn`/`err`
+  → `logsMsg`.
+- **Сканеры** — блокировка IP.
+- **dma** — SMARTHOST, periodic-отчёты.
+- **Картинки WordPress** — `sites/10/ASC_10` vs `uploads/ASC_10`.
+- **WS2 SSH** — `kex_exchange_identification`.
+- **T-015 (RedOS)** — systemd-юнит.
+- **T-017** — универсальный механизм монтирования.
+- **T-005** — мёртвые переменные `ConfPaths.sh`.
+- **T-020** — тестирование `53_funcGpart.sh`.
+- **monPhpFpm** — пул (`pm.status_path`).
+- **monReverseProxyHeaders/Fix** — проверка на сервере.
+
+**Ключевые правки (безопасность):**
+- `13_funcSsh.sh`: `StrictHostKeyChecking no` → `accept-new`,
+  `sshpass -p` → `-e`, `ed25519`, `trap` для `ssh-agent -k`,
+  `sshd -t` перед restart.
+- `12_funcUsers.sh`: `usersSudo` — `visudo -cf` + бэкап,
+  `usersSecureSshRoot` — `sshd -t`, `usersChrootLiveCD` —
+  `mount devfs`, `zpool import -N`.
+- `15_funcSslRsa.sh`: `logsMsg"ERROR"` → `logsMsg "ERROR"`,
+  `--batch` перед Easy-RSA, `sslUpdateRootCertValidity` —
+  подтверждение `YES`.
+- `16_funcCertbot.sh`: `certRenew` — только `renew` (без
+  `--force-renewal`), `certForceRenew` — отдельная.
+- `17_funcDocker.sh`: `${48emk@!SQL}` → `MariaDBRootPassword`,
+  `docker image prune -a -f` вместо `rmi $(docker images -q)`.
+- `26_funcSyncArc.sh`: `syncArcSqlRestoreToServer` — переписан,
+  `syncArcSqlFromServerToArc` — динамический выбор клиента/флага.
+- `31_funcWeb.sh`: `webPatchWordPressConfig` — вставка после
+  `<?php`, `webRestartService` — `-t` перед restart.
+- `36_funcSamba.sh`: пароль/IP/шара → `ConfManual.sh`,
+  `chmod 755` вместо `777`, `valid users=@wheel`.
+- `38_funcNextcloud.sh`: `nc_pass` объявлена, `sed` оставлен.
+- `42_funcFirewall2.sh`: `--add-service=ssh` (SSH 22/tcp).
+- `44_funcSeLinux.sh`: `httpd_sys_content_t`/`rw_content_t`
+  разделены.
+- `57_funcDiskMount.sh`: `NC_CACHE_DIR` + `--cache-dir`.
+- `62_funcTelegram.sh`: секреты → `ConfManual.sh`, `parse_mode=HTML`,
+  `curl -f`, `createDir`.
+- `101_funcWordPress.sh`: `latest_version` через `api.github.com`,
+  URL автодополнения, `php${v}-phar`, `wp_users` не пропускать.
+- `102_funcSiteMonit.sh`: `MONIT_AUTO_REBOOT`, `accept-new`,
+  Telegram `$'\n'`.
+
+**`merge_project.ps1` (обновлён):**
+- По умолчанию режет на части ~250 КБ по верхнеуровневым папкам.
+- `-NoSplit` — один файл.
+- `-SplitSizeKB N`, `-Part N`.
+- Вывод в `Win\MergeProjectOut\`.
+- Маркер `=== END OF PART N/M ===` в конце каждой части.
+
 ## ❓ ОТКРЫТЫЕ ВОПРОСЫ
 
-1. **WS2 SSH** — `kex_exchange_identification: timeout`. TCP идёт,
-   SSH-баннер не приходит. Отложено.
-2. **Картинки WordPress** — `sites/10/ASC_10/...` vs
-   `uploads/ASC_10/...`. Петля `AH00124` при запросе
-   несуществующих. Отложено.
-3. **Сканеры** — блокировка IP (`20.58.188.171` и др.).
-4. **SMART** — `/dev/da2` self-test failed (WDC16). Нужно
+1. **zrepl-миграция** — завершить: `wsw` (252G), снять `@migrate`;
+   destroy `ws2_local`, `wsw/wsw`; правка конфига WS2; restart.
+2. **SMART** — `/dev/da2` self-test failed (WDC16). Нужно
    `smartctl -a /dev/da2`.
-5. **dma** — настроить SMARTHOST, вернуть periodic-отчёты.
-6. **T-001** — продолжить разбор `Func/01_Config` (11–14, 18, 19),
-   `Func/02_Backup` (21, 25–28).
-7. **T-021** — миграция `info`/`warn`/`err` на `logsMsg`.
-8. **T-003** — `ConfManual.sh`.
-9. **T-018 (расширено)** — ревизия `Func/Watch/`.
-10. **T-015 (RedOS)** — systemd-юнит.
-11. **НОВАЯ** — `server.list` под роли.
-12. **НОВАЯ** — скрипт вкл/выкл ролей.
-13. **НОВАЯ** — `Def/disks.list`.
-14. **НОВАЯ** — `rsInitRepository` от `angelrs`.
-15. **НОВАЯ** — `monPhpFpm` пул не настроен (`pm.status_path`).
-16. **zrepl-миграция** — завершить: `wsw`; снять `@migrate`;
-    destroy `ws2_local`, `wsw/wsw`; правка конфига WS2; restart.
+3. **T-004** — `source_required` (отложено).
+4. **НОВАЯ** — `server.list` под роли.
+5. **НОВАЯ** — скрипт вкл/выкл ролей.
+6. **НОВАЯ** — `Def/disks.list`.
+7. **НОВАЯ** — `rsInitRepository` от `angelrs`.
 
 ## 🛠 КОМАНДЫ ai_context.ps1
 
 | Команда | Что делает |
-|---------|-----------|
+
 | status | Показать состояние AI-папки. |
 | zip | Собрать zip-пакет. |
 | down | Распаковать пакет из буфера. |
@@ -393,7 +454,7 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 ## 🛠 ИНСТРУМЕНТЫ (файлы и папки)
 
 | Файл / папка | Назначение |
-|--------------|-----------|
+
 | AI_START.md | Короткая точка входа. |
 | AI_MAP.md | Карта проекта. |
 | AI_CONTEXT.md | Этот файл. |
@@ -433,6 +494,11 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - **`zrepl sink`: `root_fs` БЕЗ `client_identity`** — иначе дубли.
 - **`zfs send -R` требует снапшот на КОРНЕ дерева**, иначе
   промежуточные уровни приедут как placeholder'ы.
+- **`StrictHostKeyChecking=no` запрещён** — только `accept-new`.
+- **`sshpass -p` запрещён** — только `sshpass -e` (пароль в `SSHPASS`).
+- **`visudo -cf` / `sshd -t` перед restart** — обязательно.
+- **Бэкап `.bak.YYYY-MM-DD_HHMM`** перед правкой `sudoers`/`sshd_config`/
+  `fstab`/`loader.conf`/`wp-config.php`.
 
 ## 📁 КОДИРОВКА ФАЙЛОВ
 
@@ -455,8 +521,9 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - **HTTP-проверка:** `_webstack_http_check` (local/external/remote).
 - **MySQL-монитор:** пользователь `monitor`, пароль
   `MTr9kLp2Xw7qNv`.
-- **WS2 SSH** — отложено (`kex_exchange_identification: timeout`).
 - **NFS не работает — норма** (`192.168.1.19`, `192.168.2.5` —
   серверы ещё не настроены).
 - **zrepl sink:** `root_fs/${client_identity}/${source_path}`.
-- **zrepl-миграция:** см. открытые вопросы п.16.
+- **zrepl-миграция:** см. открытые вопросы п.1.
+- **`merge_project.ps1`** — по умолчанию режет на части
+  ~250 КБ в `Win\MergeProjectOut\`.
