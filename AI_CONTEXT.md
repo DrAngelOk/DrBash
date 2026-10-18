@@ -9,7 +9,7 @@
 URL: https://github.com/DrAngelOk/DrBash
 Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 Тип: публичный
-Дата последней загрузки: 2026-10-18
+Дата последней загрузки: 2026-10-19
 
 Файлы в репозитории (12 шт.):
 
@@ -42,21 +42,23 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - Меню-фреймворк с регистрацией функций через MenuRegister.
 - Диспетчер запуска: единая функция MenuStart (интерактив + CLI/Cron).
 - Двухплатформенная абстракция через переменную ${OSType} (RedOS / FreeBSD).
-- Модули пронумерованы: 01_Config, 02_Backup, ..., 11_Check.
+- Модули пронумерованы: 01_Config, 02_Backup, ..., 11_Check, 12_Deploy.
 - Файлы внутри модулей: NN_funcName.sh.
 
 Карта проекта — в AI_MAP.md.
 
 Статус проекта: **T-001 (первичный разбор кода) — ЗАКРЫТА (100%)**.
+**T-030 (развёртывание и синхронизация конфигов) — В РАБОТЕ (~40%)**.
 
 **Разобраны / переработаны в этой и прошлых сессиях:**
 - startMain.sh, Conf/ (7 файлов), Func/Scripts (2 файла),
   Func/Menu/funcMenu.sh, Func/05_Disks/ (6 файлов),
   Func/01_Config (9/9), Func/02_Backup (8/8),
-  Func/06_Logs (3/3), Func/07_Monitoring (9/9),
-  Func/08_ESXi (2/2), Func/09_System (4/4), Func/10_Sites (2/2),
+  Func/06_Logs (3/3), Func/07_Mon (9/9),
+  Func/08_VM (2/2), Func/09_System (4/4), Func/10_Sites (2/2),
   Func/11_Check (11.1.x–11.4.2).
 - Func/Watch/ — закрыт (T-018, поглощён модулем 11).
+- Func/12_Deploy/ — создан (T-030): 120 common, 121 audit, 122 pull, 123 push.
 
 **Серверы (из Def/server.list):**
 - WSW (192.168.1.21, ens160, root, FreeBSD 15.1-RELEASE-p2) —
@@ -360,11 +362,11 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
   - `Func/01_Config/` — 9/9 (11–19).
   - `Func/02_Backup/` — 8/8 (21–28).
   - `Func/03_Servers/` — завершено (31–39).
-  - `Func/04_Security/` — завершено (41, 42, 44).
+  - `Func/04_FW/` — завершено (41, 42, 44).
   - `Func/05_Disks/` — 6/6 (51–58).
   - `Func/06_Logs/` — 3/3 (61, 62, 66).
-  - `Func/07_Monitoring/` — 9/9 (71–79).
-  - `Func/08_ESXi/` — 2/2 (81, 82).
+  - `Func/07_Mon/` — 9/9 (71–79).
+  - `Func/08_VM/` — 2/2 (81, 82).
   - `Func/09_System/` — 4/4 (91, 92, 93, 99).
   - `Func/10_Sites/` — 2/2 (101, 102).
   - `Func/11_Check/` — ГОТОВО (11.1.x–11.4.2).
@@ -427,6 +429,91 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - Вывод в `Win\MergeProjectOut\`.
 - Маркер `=== END OF PART N/M ===` в конце каждой части.
 
+### Сессия 2026-10-19 — Проверка разбивки дампа, баги кода, T-030 (архитектура + модуль 12_Deploy)
+
+**Проверка разбивки дампа (5 частей):**
+- PART 1–5 прочитаны полностью, обрывов нет. Разбивка ~250 КБ рабочая.
+- Найдены 2 бага `merge_project.ps1`:
+  - футер последней части печатал «Следующая часть: 6 из 5»;
+  - `startMain.sh` не попадал в TOC PART 5 (секция `ROOT` не выводилась).
+- Исправлено: футер для последней части — «Это последняя часть (N из M)»;
+  `Section` теперь определяется и по `Top -eq 'ROOT'`, а не только по `$rootSet`.
+
+**Баги кода (починены):**
+- `61_funcLogs.sh`: `logsShowMessages` (6.1.3) и `logsShowConsole` (6.1.4) —
+  сломанный heredoc (`\${1:-50}`, `\({target_log}`, `\){line_limit}`,
+  `pblu---` без `$`). Восстановлено, добавлен `timeout` на
+  `dmesg`/`tail`/`journalctl`, `mkdir -p` → `createDir` в
+  `logsSnapshotDmesgBoot`.
+- `funcCheck.sh`: вызов несуществующей `warn` → `logsMsg "WARN"`
+  (логгер `warn` удалён из `funcUtil.sh`).
+- `114_funcPostMortem.sh`: `logsMsg "ERR"` → `logsMsg "ERROR"` (2 места);
+  добавлен `MenuRegister "11"` перед `"11.4"`.
+
+**T-030 — Развёртывание серверов и синхронизация файлов настроек:**
+- Архитектура (5 решений):
+  1. Источник истины — GitHub `DrAngelOk/DrBash` (`Def/`, `Sample/`).
+  2. Синхронизируются ВСЕ конфиги; роли в `server.list` (`functions`) —
+     переключатели активности служб, не фильтр синхронизации.
+  3. Направление — pull + push с ревью.
+  4. Конфликты — эталон всегда побеждает (force pull), бэкап
+     `.bak.YYYY-MM-DD_HHMM`; push — единственный способ изменить эталон.
+  5. Область — `Def/sync.<ostype>.list` (строгий INI, секция
+     `[OSType:путь]`), эталон в `Sample/<OSType>/<rel>` (зеркало пути
+     без ведущего `/`).
+- Статусы: `ready` / `manual` / `do-not-touch`. Пока `Sample/` пуст —
+  ВСЕ пути `do-not-touch`.
+- Процедура перевода в `ready`/`manual`: сравнить WSW↔WS2 →
+  проанализировать расхождения → согласовать с ИИ → положить эталон
+  в `Sample/` → перевести статус.
+- Эталон — **Nextcloud-моунт** (`DirScriptsSampleNet =
+  ${NC_MOUNT_POINT:-/mnt/scripts}/Sample`), виден всем серверам и Windows.
+  `DirScriptsSample` (локальная) — «на потом».
+- Цепочка: push (сервер → `/mnt/scripts/Sample/`) → Nextcloud → Windows →
+  `sanitize_for_repo.ps1` → `git push` → GitHub → pull (GitHub/Nextcloud →
+  сервер).
+
+**Создано:**
+- `Def/sync.freebsd.list` — 39 путей, все `do-not-touch`, кроме
+  `wp-config.php` (`do-not-touch` — патч, не зеркало). Исправлены пути
+  по факту WSW: `/etc/sudoers` → `/usr/local/etc/sudoers`,
+  `/usr/local/etc/zrepl.yml` → `/usr/local/etc/zrepl/zrepl.yml`,
+  `/var/db/mysql/my.cnf` удалён. Добавлены `boot`-пути:
+  `/boot/loader.conf`, `/boot/loader.conf.d/`, `/boot/device.hints`.
+- `Def/sync.redos.list` — 24 пути, все `do-not-touch`, кроме
+  `/etc/default/grub` (`manual`) и `/boot/grub2/custom.cfg` (`manual`);
+  `/boot/grub2/grub.cfg` — `do-not-touch` (генерируется).
+- `Func/12_Deploy/120_funcSyncCommon.sh` — парсер `sync.list`
+  (`_sync_parse_list`), хелперы `_sync_ostype_lc`, `_sync_list_path`,
+  `_sync_sample_path`, `_sync_status_of`.
+- `Func/12_Deploy/121_funcSyncAudit.sh` — аудит (12.1.1), read-only,
+  TXT + TSV.
+- `Func/12_Deploy/122_funcSyncPull.sh` — pull (12.1.2), режимы
+  dry-run / `--yes` / `--force`, бэкап, `rsync -a --delete` для dir.
+- `Func/12_Deploy/123_funcSyncPush.sh` — push (12.1.3), режимы
+  dry-run / `--yes`/`--force`, бэкап эталона, WARN про
+  `sanitize_for_repo.ps1`.
+
+**Правки `ConfPaths.sh`:**
+- `DirScriptsDeploy="${DirScripts}/Func/12_Deploy"`.
+- `DirSyncListPrefix="${DirScriptsDef}/sync"`.
+- `DirScriptsSampleNet="${NC_MOUNT_POINT:-/mnt/scripts}/Sample"` (основная),
+  `DirScriptsSample` оставлена (локальная).
+
+**Аудит на WSW (12.1.1) — результат:**
+- 39 путей: 28 существует, 11 отсутствует, тип не совпал 0.
+- `Sample/` = 0 (эталонов ещё нет — ожидаемо).
+- 11 отсутствующих — роли не активны на WSW (`namedb`, `exports`,
+  `smb4.conf`, `rest-server`, `smartd.conf`), либо пути неверны
+  (исправлены), либо файла нет (`aliases.conf`).
+
+**Согласовано:**
+- `.profile` — эталон = живой WSW (с `EASYRSA_VARS_FILE`, `resizewin`,
+  `source ${ENV}`).
+- `.bashrc` — согласован.
+- `.bashrc.d/` — нужна как папка; содержимое: `.aliases.conf`,
+  `.colors.conf`, `.wp-completion.conf`.
+
 ## ❓ ОТКРЫТЫЕ ВОПРОСЫ
 
 1. **zrepl-миграция** — завершить: `wsw` (252G), снять `@migrate`;
@@ -438,6 +525,15 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 5. **НОВАЯ** — скрипт вкл/выкл ролей.
 6. **НОВАЯ** — `Def/disks.list`.
 7. **НОВАЯ** — `rsInitRepository` от `angelrs`.
+8. **T-030.3** — `sync.freebsd.list` / `sync.redos.list` созданы, но не
+   проверены в работе pull/push. Первый реальный цикл:
+   `.profile`/`.bashrc`/`.bashrc.d` → `manual` → push → `Sample/` →
+   проверить → `ready`.
+9. **T-030.4** — наполнить `Sample/` эталонами (push с WSW и WS2,
+   сравнение, согласование). Начать с профилей root.
+10. **T-030.5–.9** — pull/push написаны, но не тестированы; роли
+    (`server.list` → вкл/выкл служб), развёртывание нового сервера,
+    `Def/disks.list`, `rsInitRepository` — не начаты.
 
 ## 🛠 КОМАНДЫ ai_context.ps1
 
@@ -468,6 +564,9 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 | patches/ | Патчи. |
 | _repo/ | Локальные копии. |
 | _transfer/ | Готовые zip-пакеты. |
+| Def/sync.freebsd.list | Манифест синхронизации конфигов FreeBSD (T-030). |
+| Def/sync.redos.list | Манифест синхронизации конфигов RedOS (T-030). |
+| Func/12_Deploy/ | Модуль развёртывания и синхронизации (120 common, 121 audit, 122 pull, 123 push). |
 
 ## ⚙️ СОГЛАШЕНИЯ
 
@@ -499,6 +598,12 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - **`visudo -cf` / `sshd -t` перед restart** — обязательно.
 - **Бэкап `.bak.YYYY-MM-DD_HHMM`** перед правкой `sudoers`/`sshd_config`/
   `fstab`/`loader.conf`/`wp-config.php`.
+- **Все пути — только через `ConfPaths.sh`.** В коде модулей не должно
+  быть хардкодов путей (`/ARC/...`, `/var/log/my`, `Def/...`). Если нужен
+  новый путь — заводится переменная `Dir*`/`Cfg*` в `ConfPaths.sh` и
+  используется через `${...}`.
+- **Эталон конфигов — Nextcloud-моунт** (`DirScriptsSampleNet`), не
+  локальная папка. `DirScriptsSample` — резервная, «на потом».
 
 ## 📁 КОДИРОВКА ФАЙЛОВ
 
@@ -527,3 +632,5 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - **zrepl-миграция:** см. открытые вопросы п.1.
 - **`merge_project.ps1`** — по умолчанию режет на части
   ~250 КБ в `Win\MergeProjectOut\`.
+- **T-030:** эталон конфигов — `DirScriptsSampleNet`
+  (`/mnt/scripts/Sample`), манифест — `Def/sync.<ostype>.list`.
