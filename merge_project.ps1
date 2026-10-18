@@ -467,7 +467,16 @@ foreach ($file in $files) {
 
     Write-Host ("[{0,4}/{1}] {2}" -f $index, $files.Count, $rel) -ForegroundColor Yellow
 
-    $section = if ($rootSet.Contains($file.FullName)) { 'ROOT' } else { 'MANIFEST' }
+    # [FIX] Секция ROOT: определяется не только по $rootSet, но и по Top = 'ROOT'.
+    #       Это гарантирует, что корневые файлы (startMain.sh и др.) всегда
+    #       попадают в секцию ROOT оглавления — даже если по какой-то причине
+    #       не оказались в $rootFiles (например, манифест обновился позже).
+    $topFolder = Get-TopFolder -RelPath $rel
+    if ($rootSet.Contains($file.FullName) -or $topFolder -eq 'ROOT') {
+        $section = 'ROOT'
+    } else {
+        $section = 'MANIFEST'
+    }
 
     $res = New-DumpBlock -File $file
     if ($res.Broken) {
@@ -479,7 +488,7 @@ foreach ($file in $files) {
         Section = $section
         Content = $res.Content
         Broken  = $res.Broken
-        Top     = (Get-TopFolder -RelPath $rel)
+        Top     = $topFolder
     })
 }
 
@@ -672,11 +681,22 @@ for ($pi = 0; $pi -lt $selectedParts.Count; $pi++) {
     $footer   = ''
     if ($totalParts -gt 1) {
         $partHint = "Часть $globalPartIdx из $totalParts. Файлы сгруппированы по верхнеуровневым папкам."
-        $footer   = ""
-        $footer  += ("`n" + ('=' * 69) + "`n")
-        $footer  += " === END OF PART $globalPartIdx OF $totalParts ===`n"
-        $footer  += " Часть прочитана до конца. Следующая часть: $($globalPartIdx + 1) из $totalParts.`n"
-        $footer  += ('=' * 69) + "`n"
+
+        # [FIX] Футер: для последней части — "Это последняя часть",
+        #       для остальных — "Следующая часть: N+1 из M".
+        #       Раньше для последней части печаталось "6 из 5".
+        if ($globalPartIdx -lt $totalParts) {
+            $nextPartNum = $globalPartIdx + 1
+            $nextLine    = " Часть прочитана до конца. Следующая часть: $nextPartNum из $totalParts.`n"
+        } else {
+            $nextLine    = " Часть прочитана до конца. Это последняя часть ($globalPartIdx из $totalParts).`n"
+        }
+
+        $footer  = ""
+        $footer += ("`n" + ('=' * 69) + "`n")
+        $footer += " === END OF PART $globalPartIdx OF $totalParts ===`n"
+        $footer += $nextLine
+        $footer += ('=' * 69) + "`n"
     }
 
     $partContent = Get-PartContent -Blocks $p.Blocks `
