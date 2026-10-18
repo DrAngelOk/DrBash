@@ -36,10 +36,10 @@ startMain.sh — единственная точка входа, в корне �
 | ConfSources.sh | Автоподключение модулей |
 | ConfResticClients.sh | INI-парсер restic_clients.list |
 
-### Def/ — списки (6 файлов)
+### Def/ — списки (8 файлов)
 
 dns.list, esxi.list, scriptpaths.list, server.list, users.cfg,
-restic_clients.list.
+restic_clients.list, **sync.freebsd.list** (T-030), **sync.redos.list** (T-030).
 
 ### Func/01_Config/ — конфигурация (9 файлов) — ГОТОВО (9/9)
 
@@ -81,13 +81,15 @@ restic_clients.list.
 | 38_funcNextcloud.sh | ГОТОВО |
 | 39_funcDns.sh | ГОТОВО |
 
-### Func/04_Security/ — безопасность (41–44) — ГОТОВО
+### Func/04_FW/ — брандмауэр и SELinux (3 файла) — ГОТОВО
 
 | Файл | Статус |
 
 | 41_funcFirewall.sh | ГОТОВО |
 | 42_funcFirewall2.sh | ГОТОВО |
 | 44_funcSeLinux.sh | ГОТОВО |
+
+> **[FIX] T-030:** в AI_MAP ранее значилось `Func/04_Security/`. Фактическая папка — `Func/04_FW/`. Исправлено.
 
 ### Func/05_Disks/ — диски (6 файлов) — ГОТОВО (6/6)
 
@@ -104,11 +106,11 @@ restic_clients.list.
 
 | Файл | Статус |
 
-| 61_funcLogs.sh | ГОТОВО |
+| 61_funcLogs.sh | ГОТОВО (2026-10-19: починен сломанный heredoc 6.1.3/6.1.4) |
 | 62_funcTelegram.sh | ГОТОВО |
 | 66_funcJournalctl.sh | ГОТОВО |
 
-### Func/07_Monitoring/ — мониторинг (9 файлов) — ГОТОВО (9/9)
+### Func/07_Mon/ — мониторинг (9 файлов) — ГОТОВО (9/9)
 
 | Файл | Статус |
 
@@ -122,12 +124,16 @@ restic_clients.list.
 | 78_funcMonNet.sh | ГОТОВО |
 | 79_funcMonIftop.sh | ГОТОВО |
 
-### Func/08_ESXi/ — гипервизоры (2 файла) — ГОТОВО (2/2)
+> **[FIX] T-030:** в AI_MAP ранее значилось `Func/07_Monitoring/`. Фактическая папка — `Func/07_Mon/`. Исправлено.
+
+### Func/08_VM/ — гипервизоры (2 файла) — ГОТОВО (2/2)
 
 | Файл | Статус |
 
 | 81_funcEsxi.sh | ГОТОВО |
 | 82_funcVmTools.sh | ГОТОВО |
+
+> **[FIX] T-030:** в AI_MAP ранее значилось `Func/08_ESXi/`. Фактическая папка — `Func/08_VM/`. Исправлено.
 
 ### Func/09_System/ — система (4 файла) — ГОТОВО (4/4)
 
@@ -145,30 +151,38 @@ restic_clients.list.
 | 101_funcWordPress.sh | ГОТОВО |
 | 102_funcSiteMonit.sh | ГОТОВО |
 
-### Func/11_Check/ — мониторинг — ГОТОВО
+### Func/11_Check/ — мониторинг и проверки — ГОТОВО
 
 | Файл | Функции | Статус |
 
-| 11_funcMonZfs.sh | 11.1.1–11.1.8 | ГОТОВО |
-| 11_funcMonMemory.sh | 11.2.1–11.2.6 | ГОТОВО |
-| 11_funcMonWebStack.sh | 11.3.1–11.3.8 | ГОТОВО |
-| 113_funcCheckBSD.sh | 11.4.1 | ГОТОВО |
-| 114_funcPostMortem.sh | 11.4.1, 11.4.2 | ГОТОВО |
+| 111_funcCheckDisk.sh | 11.1.1–11.1.8 (внутри — шапка `11_funcMonZfs.sh`) | ГОТОВО |
+| 112_funcCheckRAM.sh | 11.2.1–11.2.6 (внутри — шапка `11_funcMonMemory.sh`) | ГОТОВО |
+| 113_funcCheckBSD.sh | 11.3.1–11.3.8 (внутри — шапка `11_funcMonWebStack.sh`) | ГОТОВО |
+| 114_funcPostMortem.sh | 11.4.1, 11.4.2 | ГОТОВО (2026-10-19: `logsMsg "ERR"` → `"ERROR"`, `MenuRegister "11"`) |
+
+> **[FIX] T-030:** имена файлов в карте не совпадали с фактическими. Ранее значилось `11_funcMonZfs.sh`, `11_funcMonMemory.sh`, `11_funcMonWebStack.sh`. Фактические — `111_funcCheckDisk.sh`, `112_funcCheckRAM.sh`, `113_funcCheckBSD.sh`. Исправлено.
+
+### Func/12_Deploy/ — развёртывание и синхронизация (НОВЫЙ, T-030)
+
+| Файл | ID | Статус |
+
+| 120_funcSyncCommon.sh | — (служебный) | ГОТОВО |
+| 121_funcSyncAudit.sh | 12.1.1 | ГОТОВО (аудит WSW: 39 путей, 28 есть) |
+| 122_funcSyncPull.sh | 12.1.2 | ГОТОВО (не тестирован) |
+| 123_funcSyncPush.sh | 12.1.3 | ГОТОВО (не тестирован) |
 
 ### Func/Scripts/ — утилиты (2 файла)
 
-funcCheck.sh, funcUtil.sh (`createDir`, `source_required`,
-`installDrbashWrapper`, fallback `logsMsg`).
+| Файл | Статус |
+
+| funcCheck.sh | ГОТОВО (2026-10-19: `warn` → `logsMsg "WARN"`) |
+| funcUtil.sh | ГОТОВО |
+
+`funcUtil.sh` содержит `createDir`, `source_required`, `installDrbashWrapper`, fallback `logsMsg`.
 
 ### Func/Watch/ — наблюдение — ЗАКРЫТ (T-018)
 
-5 «сырых» файлов поглощены модулем 11:
-- `watchApache.sh` → `monApache` (11.3.2).
-- `watchMysql.sh` → `monMysql` (11.3.3).
-- `watchOpenvpn.sh` → `monOpenvpn` (11.3.4).
-- `watchWSW.sh` → `monMemory` + `monWebStackSummary` (11.2.x, 11.3.5).
-- `wsw-postmortem.sh` → `monPostmortem` (11.4.1) + `pmAnalyze` (11.4.2).
-Добавлена `monSystemLoad` (11.2.6).
+5 «сырых» файлов поглощены модулем 11.
 
 ## 🔗 Связи
 
@@ -179,44 +193,37 @@ funcCheck.sh, funcUtil.sh (`createDir`, `source_required`,
 - Единый логгер — `logsMsg`.
 - **HTTP-проверка:** `_webstack_http_check`.
 - **zrepl sink:** путь = `root_fs/${client_identity}/${source_path}`.
+- **T-030:** эталон конфигов — `DirScriptsSampleNet` (`/mnt/scripts/Sample`), манифест — `Def/sync.<ostype>.list`.
 
 ## 📊 Статус разбора T-001
 
 **T-001 — 100% (ЗАКРЫТА).**
 
-| Модуль | Разобрано | Статус |
-
-| startMain.sh | 1/1 | ГОТОВО |
-| Conf/ | 7/7 | ГОТОВО |
-| Func/Scripts | 2/2 | ГОТОВО |
-| Func/Menu | 1/1 | ГОТОВО |
-| Func/01_Config | 9/9 | ГОТОВО |
-| Func/02_Backup | 8/8 | ГОТОВО |
-| Func/03_Servers | 8/8 | ГОТОВО |
-| Func/04_Security | 3/3 | ГОТОВО |
-| Func/05_Disks | 6/6 | ГОТОВО |
-| Func/06_Logs | 3/3 | ГОТОВО |
-| Func/07_Monitoring | 9/9 | ГОТОВО |
-| Func/08_ESXi | 2/2 | ГОТОВО |
-| Func/09_System | 4/4 | ГОТОВО |
-| Func/10_Sites | 2/2 | ГОТОВО |
-| Func/11_Check | 11.1.x–11.4.2 | ГОТОВО |
-| Func/Watch | 5/5 | ЗАКРЫТ (T-018) |
-
 Итого: ~60 файлов разобрано. T-001 — 100%.
 
 ## 📌 Актуально
 
+**T-030 (в работе, ~40%):**
+- Архитектура: 5 решений (источник — GitHub, роли — переключатели, pull+push, эталон побеждает, `sync.list` + `Sample/`).
+- Создан модуль `12_Deploy` (120 common, 121 audit, 122 pull, 123 push).
+- `Def/sync.freebsd.list` (39 путей), `Def/sync.redos.list` (24 пути).
+- Аудит WSW: 28 из 39 путей существуют, `Sample/` пуст.
+- Осталось: первый push профилей root, аудит WS2, согласование эталонов, тесты pull/push, роли, развёртывание нового сервера.
+
+**Закрыто в сессии 2026-10-19:**
+- Проверка разбивки дампа (5 частей) — рабочая.
+- `merge_project.ps1` — 2 бага.
+- `61_funcLogs.sh`, `funcCheck.sh`, `114_funcPostMortem.sh` — баги.
+- T-030 архитектура + `sync.*.list` + модуль `12_Deploy` + `ConfPaths.sh`.
+
 **Закрыто в сессии 2026-10-18:**
 - T-001 (100%), T-018, T-003, T-021.
-- Сканеры, dma, картинки WordPress, WS2 SSH, T-015, T-017,
-  T-005, T-020, monPhpFpm, monReverseProxyHeaders/Fix.
-- `merge_project.ps1` — нарезка на части ~250 КБ в
-  `Win\MergeProjectOut\`.
+- Сканеры, dma, картинки WordPress, WS2 SSH, T-015, T-017, T-005, T-020.
+- monPhpFpm, monReverseProxyHeaders/Fix.
+- `merge_project.ps1` — нарезка на части.
 
-**Осталось:**
+**Осталось (кроме T-030):**
 - zrepl-миграция (`wsw`, `@migrate`, destroy, конфиг WS2).
 - SMART `/dev/da2`.
 - T-004 (`source_required`).
-- `server.list` под роли, скрипт вкл/выкл ролей, `Def/disks.list`,
-  `rsInitRepository`.
+- `server.list` под роли, скрипт вкл/выкл ролей, `Def/disks.list`, `rsInitRepository`.
