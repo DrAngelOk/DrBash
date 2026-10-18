@@ -2,32 +2,29 @@
 
 ## 🎯 В РАБОТЕ
 
-□ **zrepl-миграция структуры приёмника (WS2)** — ЗАВЕРШИТЬ.
-- ☑ `ws2_local/zroot` → `ws2/zroot` (СДЕЛАНО)
-- ☑ `ws2_local/www2` → `ws2/www2` (СДЕЛАНО)
-- ☑ `ws2_local/BS07_MY/ws2_local/BS07_MY` → `ws2/BS07_MY` (2.03T) (СДЕЛАНО)
-- □ `wsw/wsw/zroot` → `wsw/zroot` (252G) — НЕ ЗАПУЩЕНО
-  - `@migrate` на `wsw/wsw/zroot` — есть
-  - команда: `zfs send -R -s BS07_MY/ZREPL/wsw/wsw/zroot@migrate | zfs recv -F -s BS07_MY/ZREPL/wsw/zroot`
-- □ Снять `@migrate` со всех новых датасетов
-- □ Destroy `BS07_MY/ZREPL/ws2_local` (recursive)
-- □ Destroy `BS07_MY/ZREPL/wsw/wsw` (recursive, родитель `wsw` оставить)
-- □ Правка `zrepl.yml` на WS2:
-  - `push_ws2_*`: `client_identity: ws2_local` → `ws2`
-  - `local_sink_*`: `root_fs: BS07_MY/ZREPL` (без хвоста)
-  - `sink_wsw`: `root_fs: BS07_MY/ZREPL` (без `/wsw`)
-- □ `zrepl configcheck`
-- □ `service zrepl restart` (сначала WS2, потом WSW)
-- □ `zrepl status` — проверить
+□ **T-030 — Развёртывание серверов и синхронизация файлов настроек.**
+Архитектура зафиксирована (5 решений). Модуль `12_Deploy` создан.
+- ☑ `Def/sync.freebsd.list` (39 путей, все `do-not-touch`)
+- ☑ `Def/sync.redos.list` (24 пути, `do-not-touch` + 2 `manual`)
+- ☑ `120_funcSyncCommon.sh` (парсер + хелперы)
+- ☑ `121_funcSyncAudit.sh` (12.1.1, read-only, TXT+TSV)
+- ☑ `122_funcSyncPull.sh` (12.1.2, dry/--yes/--force, бэкап)
+- ☑ `123_funcSyncPush.sh` (12.1.3, dry/--yes, бэкап эталона)
+- ☑ `ConfPaths.sh`: `DirScriptsSampleNet`, `DirScriptsDeploy`, `DirSyncListPrefix`
+- ☑ Аудит WSW: 39 путей, 28 есть, 11 нет, `Sample/` = 0
+- □ **T-030.2** — перевести `.profile`, `.bashrc`, `.bashrc.d` в `manual`, push → `Sample/`, согласовать → `ready`
+- □ **T-030.4** — наполнить `Sample/` эталонами (WSW + WS2, сравнение)
+- □ **T-030.5** — проверить pull на реальных эталонах
+- □ **T-030.6** — проверить push на реальных эталонах
+- □ **T-030.8** — скрипт вкл/выкл ролей (`server.list` → службы)
+- □ **T-030.9** — развёртывание нового сервера (оркестратор)
+- □ `39_funcDns.sh` (`dnsSetup`) → `DirScriptsSampleNet` (отложено)
 
-□ **SMART** — `/dev/da2` self-test failed (WDC16).
-Нужно `smartctl -a /dev/da2`.
+□ **SMART** — `/dev/da2` self-test failed (WDC16). Нужно `smartctl -a /dev/da2`.
 
 □ **T-004 — source_required** (отложено).
 
 □ **НОВАЯ** — `server.list` под роли.
-
-□ **НОВАЯ** — скрипт вкл/выкл ролей.
 
 □ **НОВАЯ** — `Def/disks.list`.
 
@@ -35,11 +32,20 @@
 
 ## ⏳ СЛЕДУЮЩЕЕ
 
-1. **zrepl-миграция** — завершить (`wsw`, `@migrate`, destroy, конфиг).
-2. **SMART `/dev/da2`** — проверить.
-3. **T-004** — `source_required`.
-4. **НОВЫЕ** — `server.list` под роли, скрипт вкл/выкл ролей,
-   `Def/disks.list`, `rsInitRepository`.
+1. **T-030.2** — первый цикл push: `.profile`/`.bashrc`/`.bashrc.d` → `manual` → push → `Sample/`.
+2. **T-030.4** — аудит WS2 (`12.1.1`), сравнение с WSW, согласование эталонов.
+3. **SMART `/dev/da2`** — проверить.
+4. **zrepl-миграция** — завершить (`wsw` + конфиг WS2).
+5. **T-004** — `source_required`.
+
+## ✅ ГОТОВО (2026-10-19)
+
+- ☑ Проверка разбивки дампа (5 частей) — рабочая.
+- ☑ `merge_project.ps1` — 2 бага: футер последней части, TOC ROOT.
+- ☑ `61_funcLogs.sh` — сломанный heredoc 6.1.3/6.1.4, `timeout`, `createDir`.
+- ☑ `funcCheck.sh` — `warn` → `logsMsg "WARN"`.
+- ☑ `114_funcPostMortem.sh` — `logsMsg "ERR"` → `"ERROR"`, `MenuRegister "11"`.
+- ☑ T-030 архитектура (5 решений) + `sync.*.list` + модуль `12_Deploy`.
 
 ## ✅ ГОТОВО (2026-10-18)
 
@@ -57,8 +63,7 @@
 - ☑ **T-020** — тестирование `53_funcGpart.sh`.
 - ☑ **monPhpFpm** — пул (`pm.status_path`).
 - ☑ **monReverseProxyHeaders/Fix** — проверка на сервере.
-- ☑ **`merge_project.ps1`** — нарезка на части ~250 КБ в
-  `Win\MergeProjectOut\`.
+- ☑ **`merge_project.ps1`** — нарезка на части ~250 КБ в `Win\MergeProjectOut\`.
 
 ## ✅ ГОТОВО (2026-10-16)
 
@@ -97,14 +102,15 @@
 
 | Метрика | Значение |
 
-| В работе | ~7 |
-| Готово | 165+ |
+| В работе | ~5 |
+| Готово | 171+ |
 | Прогресс T-001 | **100%** |
+| Прогресс T-030 | ~40% (архитектура + код, без тестов) |
 
 ## 🎯 ТЕКУЩИЙ ФОКУС
 
-- **zrepl-миграция** — завершить (`wsw` + конфиг).
-- **SMART `/dev/da2`** — проверить.
+- **T-030.2** — первый push профилей root.
+- **T-030.4** — аудит WS2 + сравнение.
+- **SMART `/dev/da2`**.
+- **zrepl-миграция** — завершить.
 - **T-004** — `source_required`.
-- **НОВЫЕ** — `server.list` под роли, скрипт вкл/выкл ролей,
-  `Def/disks.list`, `rsInitRepository`.
