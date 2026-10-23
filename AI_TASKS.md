@@ -2,8 +2,15 @@
 
 ## 🎯 В РАБОТЕ
 
+□ **zrepl `push_ws2_zroot`** — `no common snapshot`:
+  - ☑ Диагноз: у отправителя `zrepl_ws2_zroot_*`, у получателя
+    `zrepl_ws2_bs07_*` — общих нет.
+  - □ `zfs destroy -r BS07_MY/ZREPL/ws2/zroot`
+  - □ `zrepl signal wakeup push_ws2_zroot` (полный send)
+  - □ Проверить, что появились `home`, `usr`, `var/audit`, `var/crash`,
+    `var/mail`, `var/tmp`.
+
 □ **T-030 — Развёртывание серверов и синхронизация файлов настроек.**
-Архитектура зафиксирована (5 решений). Модуль `12_Deploy` создан.
 - ☑ `Def/sync.freebsd.list` (46 путей)
 - ☑ `Def/sync.redos.list` (24 пути)
 - ☑ `120_funcSyncCommon.sh` (парсер + хелперы)
@@ -27,8 +34,16 @@
   (`WDC_WD5000LPSX_WD2DWXD2A6385AFE.vmdk`), удалить тестовый
   `rdm_20261021_1409.vmdk`.
 
-□ **GSW-диск** — добавить второй vmdk в ESXi, разметить,
-  перенести `/var/lib/docker` (46G) или volumes Nextcloud/OnlyOffice.
+□ **GSW-диск** — перенести данные Nextcloud на `/mnt/doc`:
+  - □ `zpoolCreateData` (5.2.3) `doc_pool /dev/sda`
+  - □ `zfs set mountpoint=/mnt/doc doc_pool`
+  - □ `rsync` из volume → `/mnt/doc/`
+  - □ Заменить в `docker-compose.yml` на bind-mount `/mnt/doc:/var/www/html`
+    (в `app-server` и `nginx-server`)
+  - □ `docker compose up -d`, `occ files:scan --all`
+  - □ Удалить старый volume `docker-onlyoffice-nextcloud_app_data`
+
+□ **`zrInstallZrepl` (2.4.1)** — проверить на GSW (RedOS).
 
 □ **SMART** — `/dev/da2` self-test failed (WDC16). Нужно
   `smartctl -a /dev/da2`.
@@ -49,12 +64,12 @@
 
 ## ⏳ СЛЕДУЮЩЕЕ
 
-1. **T-030.4** — `.profile`/`.bashrc`/`.bashrc.d` → `ready`
-   (аудит WS2 `diff=same`), pull на WS2.
-2. **ESXi / RDM** — вставить блок имени, перезапустить.
-3. **GSW-диск** — второй vmdk.
-4. **SMART `/dev/da2`** — проверить.
-5. **T-004** — `source_required`.
+1. **zrepl `push_ws2_zroot`** — удалить `ws2/zroot`, полный send.
+2. **GSW-диск** — перенос Nextcloud на `/mnt/doc`.
+3. **ESXi / RDM** — блок имени из `t10.ATA...`.
+4. **T-030.4** — профили root → `ready`.
+5. **`zrInstallZrepl` (2.4.1)** — проверка на GSW.
+6. **SMART `/dev/da2`**.
 
 ## ✅ ГОТОВО (2026-10-23)
 
@@ -73,6 +88,10 @@
   аудит WS2, аргументы pull/push в любом порядке, вывод аудита
   выровнен (`printf`).
 - ☑ **AI_FUNCTIONS.tsv** — индекс функций (15 модулей).
+- ☑ **`zpoolListFreeDisks` (5.2.12)** — все диски с состоянием,
+  проверено на WSW и GSW.
+- ☑ **`zrInstallZrepl` (2.4.1)** — расширена под RedOS
+  (RPM-репозиторий, systemd), FreeBSD-ветка без изменений.
 
 ## ✅ ГОТОВО (2026-10-19)
 
@@ -105,15 +124,16 @@
 
 | Метрика | Значение |
 
-| В работе | ~7 |
-| Готово | 180+ |
+| В работе | ~8 |
+| Готово | 190+ |
 | Прогресс T-001 | **100%** |
 | Прогресс T-030 | ~50% (архитектура + код + push профилей, без полного теста pull/push) |
 
 ## 🎯 ТЕКУЩИЙ ФОКУС
 
-- **T-030.4** — `.profile`/`.bashrc`/`.bashrc.d` → `ready`, pull на WS2.
-- **ESXi / RDM** — вставить блок имени, перезапустить.
-- **GSW-диск** — второй vmdk.
+- **zrepl `push_ws2_zroot`** — `no common snapshot`, полный send.
+- **GSW-диск** — перенос Nextcloud на `/mnt/doc`.
+- **ESXi / RDM** — блок имени из `t10.ATA...`.
+- **T-030.4** — профили root → `ready`.
+- **`zrInstallZrepl` (2.4.1)** — проверка на GSW.
 - **SMART `/dev/da2`**.
-- **T-004** — `source_required`.
