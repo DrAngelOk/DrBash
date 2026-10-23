@@ -62,7 +62,7 @@ restic_clients.list, **sync.freebsd.list** (T-030), **sync.redos.list** (T-030).
 | 21_funcBackupPc.sh | ГОТОВО |
 | 22_funcRestic.sh | ГОТОВО |
 | 23_funcBackrest.sh | ГОТОВО |
-| 24_funcZrepl.sh | ГОТОВО |
+| 24_funcZrepl.sh | ГОТОВО (2026-10-23: `zrInstallZrepl` 2.4.1 — RedOS) |
 | 25_funcSyncMigrate.sh | ГОТОВО |
 | 26_funcSyncArc.sh | ГОТОВО |
 | 27_funcSyncRsync.sh | ГОТОВО |
@@ -96,7 +96,7 @@ restic_clients.list, **sync.freebsd.list** (T-030), **sync.redos.list** (T-030).
 | Файл | Статус |
 
 | 51_funcZFS.sh | ГОТОВО |
-| 52_funcZpool.sh | ГОТОВО |
+| 52_funcZpool.sh | ГОТОВО (2026-10-23: `zpoolListFreeDisks` 5.2.12) |
 | 53_funcGpart.sh | ГОТОВО |
 | 54_funcFiles.sh | ГОТОВО |
 | 57_funcDiskMount.sh | ГОТОВО |
@@ -213,11 +213,14 @@ restic_clients.list, **sync.freebsd.list** (T-030), **sync.redos.list** (T-030).
 
 **Закрыто в сессии 2026-10-23:**
 - zrepl-миграция завершена (`wsw/zroot`, `ws2/*`, holds, `zrepl.yml`).
+- Проблема `push_ws2_zroot` (`no common snapshot`) — диагностирована.
 - GSW: `/opt/nextcloud-gsw/`, compose + nginx.conf, контейнеры пересозданы.
 - ESXi: `sshClient` на 12/13, ключи RSA, `esxiCopyScripts`, `esxiDiskAttachPhysicalRDM` (RDM через SSH).
 - Конфиги: `loader.conf`, `sysctl.conf`, `periodic.conf`, `rc.conf`, `crontab`, `syslog.conf`, `fstab`, `motd.template`, `ntp.conf`.
 - T-030: `sync.freebsd.list` (46), push профилей root, аудит WS2, аргументы pull/push, вывод аудита.
 - `AI_FUNCTIONS.tsv` — индекс функций (15 модулей).
+- `zpoolListFreeDisks` (5.2.12) — проверено на WSW и GSW.
+- `zrInstallZrepl` (2.4.1) — расширена под RedOS.
 
 **Закрыто в сессии 2026-10-19:**
 - Проверка разбивки дампа (5 частей).
@@ -226,9 +229,11 @@ restic_clients.list, **sync.freebsd.list** (T-030), **sync.redos.list** (T-030).
 - T-030 архитектура + `sync.*.list` + модуль `12_Deploy` + `ConfPaths.sh`.
 
 **Осталось (кроме T-030):**
+- zrepl `push_ws2_zroot` — полный send (удалить `ws2/zroot`).
+- GSW-диск — перенос Nextcloud на `/mnt/doc`.
 - ESXi / RDM — блок имени из `t10.ATA...`.
-- GSW-диск (второй vmdk).
 - SMART `/dev/da2`.
 - T-004 (`source_required`).
 - `server.list` под роли, скрипт вкл/выкл ролей, `Def/disks.list`, `rsInitRepository`.
 - T-033 (crontab), T-034 (dma SMARTHOST).
+- `zrInstallZrepl` (2.4.1) — проверка на GSW.
