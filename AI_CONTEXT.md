@@ -62,6 +62,10 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - Func/12_Deploy/ — создан (T-030): 120 common, 121 audit, 122 pull, 123 push.
 - `81_funcEsxi.sh`: добавлены `esxiCopyScripts` (8.1.12), исправлена
   `esxiDiskAttachPhysicalRDM` (8.1.3) — RDM через SSH.
+- `24_funcZrepl.sh`: `zrInstallZrepl` (2.4.1) расширена под RedOS
+  (RPM-репозиторий, `dnf`, systemd). FreeBSD-ветка — без изменений.
+- `52_funcZpool.sh`: добавлена `zpoolListFreeDisks` (5.2.12) —
+  свободные диски с проверкой меток ZFS, кроссплатформенная.
 
 **Серверы (из Def/server.list):**
 - WSW (192.168.1.21, ens160, root, FreeBSD 15.1-RELEASE-p2) —
@@ -161,6 +165,15 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
   `zfs list -H -t snapshot -r -o name <ds> | while read s; do
    zfs holds -H "$s" 2>/dev/null; done` → `zfs release <tag> <snap>`.
   **`zfs release`/`zfs holds` требуют снапшот, не датасет.**
+- **`push_ws2_zroot` — проблема (23.10):** `no common snapshot` —
+  у отправителя (`zroot`) снапшоты `zrepl_ws2_zroot_*`, у получателя
+  (`ws2/zroot`) — `zrepl_ws2_bs07_*`. Имена разные, общих нет.
+  Полный send не запускается (`parent(s) failed`). Решение:
+  `zfs destroy -r BS07_MY/ZREPL/ws2/zroot`, затем
+  `zrepl signal wakeup push_ws2_zroot` (полный send).
+- **Приёмник `ws2/zroot` — неполный:** есть `ROOT`, `tmp`, `var`,
+  `var/log`, но **нет** `home`, `usr`, `var/audit`, `var/crash`,
+  `var/mail`, `var/tmp` — следствие `no common snapshot`.
 
 ## 🖥 ИНФРАСТРУКТУРА
 
@@ -207,14 +220,21 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - **`esxiCopyScripts` (8.1.12):** копирует `startMain.sh` + папки из
   `scriptpaths.list` на ESXi через `sftp` (не `scp` — SCP на ESXi
   ломается из-за «шумного» shell). Ключ — `/root/.ssh/id_rsa_esxi`.
+  Скопировано в `/vmfs/volumes/DS11/Scripts`.
 - **`esxiDiskAttachPhysicalRDM` (8.1.3):** RDM через SSH с WSW.
   `esxcli storage core device list` — устройства `t10.`/`naa.`/`eui.`.
   `esxcli storage core device get` — НЕТ в этой версии; использовать
   `list -d <device>`. `Display Name` для локальных дисков бесполезен
   (повторяет `t10.ATA...`); имя RDM — из `t10.ATA...`
-  (`WDC_WD5000LPSX_WD2DWXD2A6385AFE.vmdk`).
+  (`WDC_WD5000LPSX_WD2DWXD2A6385AFE.vmdk`). **Осталось:** вставить
+  блок имени из `t10.ATA...` (в старом варианте — `rdm_20261021_1409.vmdk`
+  на DS12, удалить).
 - **`sshClient` на ESXi11 был true, на ESXi12/13 — false.**
   Включили на 12/13.
+- **`esxcli storage core device list`** — устройства начинаются с
+  `t10.` (локальные ATA/NVMe) или `naa.`/`eui.` (SAN).
+  `Is RDM Capable: false` для локальных — но RDM всё равно можно
+  создать через `vmkfstools -z` (пример на другой машине работает).
 
 **GSW (192.168.1.25) — Nextcloud + OnlyOffice (Docker):**
 - **Рабочая директория:** `/opt/nextcloud-gsw/` (не `/ARC/_Docker/` —
@@ -233,6 +253,23 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - **`JWT_SECRET=secret`** — слабый, оставлен с `[FIX]`.
 - **Сеть:** `docker-onlyoffice-nextcloud_default` (external).
 - **Запуск:** `cd /opt/nextcloud-gsw && docker compose up -d`.
+- **Перенос данных Nextcloud на новый диск (в работе):**
+  `sda` (465G, свободен) → `zpoolCreateData` (5.2.3) `doc_pool`,
+  `zfs set mountpoint=/mnt/doc`, `rsync` из volume
+  `/var/lib/docker/volumes/docker-onlyoffice-nextcloud_app_data/_data/`
+  → `/mnt/doc/`, замена в `docker-compose.yml` на bind-mount
+  `/mnt/doc:/var/www/html` (в `app-server` и `nginx-server`),
+  `onlyoffice-document-server` — не трогать. После проверки —
+  `docker volume rm docker-onlyoffice-nextcloud_app_data`.
+  `occ files:scan --all` — 1852 папки, 21248 файлов, 6335 обновлено,
+  1 ошибка (`tpark_gsv`, `files/Photos` locked).
+
+**Диски GSW:**
+- `sda` (465.8G) — свободен, без метки ZFS.
+- `nvme0n1` (70G) — системный (`/`, `/boot`, swap).
+- `sdb` (отсутствует в выводе `lsblk -dno NAME` на GSW — не виден).
+  `zpoolListFreeDisks` (5.2.12) показывает: `sda` — свободен,
+  `nvme0n1` — системный.
 
 ## 📜 ИСТОРИЯ СЕССИЙ
 
@@ -578,6 +615,13 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - `zrepl status --mode raw` — все jobs живы, snap-джобы отработали
   на новой структуре, push-джобы в `Replication: null` (ручной
   snapshotting — запустятся по сигналу).
+- **Проблема `push_ws2_zroot` (23.10):** `no common snapshot` —
+  у отправителя (`zroot`) снапшоты `zrepl_ws2_zroot_*`, у получателя
+  (`ws2/zroot`) — `zrepl_ws2_bs07_*`. Имена разные, общих нет.
+  Полный send не запускается (`parent(s) failed`). Решение:
+  `zfs destroy -r BS07_MY/ZREPL/ws2/zroot`, затем
+  `zrepl signal wakeup push_ws2_zroot` (полный send). **НЕ СДЕЛАНО**
+  (сессия закрыта).
 
 **GSW — Nextcloud + OnlyOffice (Docker):**
 - `/ARC/_Docker/` удалена (была рабочая директория compose).
@@ -591,6 +635,16 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
   данные в external volume'ах сохранены. Снаружи работает.
 - `JWT_SECRET=secret` — оставлен с `[FIX]` (менять только синхронно
   с плагином Nextcloud).
+- **Перенос данных Nextcloud на новый диск (в работе):**
+  `sda` (465G, свободен) → `zpoolCreateData` (5.2.3) `doc_pool`,
+  `zfs set mountpoint=/mnt/doc`, `rsync` из volume
+  `/var/lib/docker/volumes/docker-onlyoffice-nextcloud_app_data/_data/`
+  → `/mnt/doc/`, замена в `docker-compose.yml` на bind-mount
+  `/mnt/doc:/var/www/html` (в `app-server` и `nginx-server`),
+  `onlyoffice-document-server` — не трогать. После проверки —
+  `docker volume rm docker-onlyoffice-nextcloud_app_data`.
+  `occ files:scan --all` — 1852 папки, 21248 файлов, 6335 обновлено,
+  1 ошибка (`tpark_gsv`, `files/Photos` locked).
 
 **ESXi (11, 12, 13 — 192.168.1.28, .38, .48):**
 - SSH между хостами: `sshServer` везде true; `sshClient` на 12/13
@@ -613,9 +667,16 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
   с WSW. `esxcli storage core device list` (устройства `t10.`/`naa.`/`eui.`),
   `esxcli storage core device get` — НЕТ, использовать `list -d`.
   `Display Name` для локальных дисков бесполезен → имя RDM из
-  `t10.ATA...` (`WDC_WD5000LPSX_WD2DWXD2A6385AFE.vmdk`). Создан
-  тестовый RDM `rdm_20261021_1409.vmdk` на DS12 (старое автоимя).
-  **Осталось:** вставить блок имени из `t10.ATA...` и перезапустить.
+  `t10.ATA...` (`WDC_WD5000LPSX_WD2DWXD2A6385AFE.vmdk`). **Осталось:**
+  вставить блок имени из `t10.ATA...` и перезапустить. Тестовый RDM
+  `rdm_20261021_1409.vmdk` на DS12 — удалить.
+- **`zpoolListFreeDisks` (5.2.12) — создана:** показывает все диски
+  с состоянием (в пуле / системный / свободен с меткой ZFS / свободен).
+  FreeBSD: `camcontrol`, `zdb -l`, `mount`; RedOS: `lsblk -J`,
+  `findmnt -n -o SOURCE` + `lsblk -no PKNAME`, `zdb -l`. Имя пула —
+  из `zpool list` + `zpool status <pool> -P`. Проверено на WSW
+  (`da0` → `zroot`, `da1` → `www2`) и GSW (`sda` — свободен,
+  `nvme0n1` — системный).
 
 **Конфиги (правки):**
 - `loader.conf` — комментарии (arc.max/min, unmapped_buf_allowed,
@@ -662,30 +723,42 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
   10_Sites, 11_Check, 12_Deploy.
 - Статусы: `ГОТОВО` / `НЕ ПРОВЕРЕНО` / `T-030` / `ОТЛОЖЕНО`.
 
+**`zrInstallZrepl` (2.4.1) — расширена под RedOS:**
+- FreeBSD-ветка — без изменений (pkg, syslogd local0, periodic, rc.conf).
+- RedOS — новая ветка: RPM-репозиторий `https://zrepl.cschwarz.com/rpm/repo`,
+  `dnf install -y zrepl`, `createDir "/etc/zrepl"`, минимальный
+  `zrepl.yml` (если нет), `zrepl configcheck`, `systemctl enable --now zrepl`.
+- `else` — явная ошибка для неизвестной ОС.
+
 ## ❓ ОТКРЫТЫЕ ВОПРОСЫ
 
-1. **T-030.4** — наполнить `Sample/` эталонами (push с WSW и WS2,
-   сравнение, согласование). Начать с профилей root (push сделан,
-   аудит WS2 `diff=same` — перевести в `ready`).
-2. **T-030.5–.9** — pull/push написаны, но не тестированы; роли
-   (`server.list` → вкл/выкл служб), развёртывание нового сервера,
-   `Def/disks.list`, `rsInitRepository` — не начаты.
-3. **`esxiDiskAttachPhysicalRDM` (8.1.3)** — вставить блок имени RDM
+1. **zrepl `push_ws2_zroot`** — `no common snapshot`. Удалить
+   `BS07_MY/ZREPL/ws2/zroot`, запустить `zrepl signal wakeup push_ws2_zroot`
+   (полный send). После — инкременты пойдут.
+2. **`esxiDiskAttachPhysicalRDM` (8.1.3)** — вставить блок имени RDM
    из `t10.ATA...` (`WDC_WD5000LPSX_WD2DWXD2A6385AFE.vmdk`) и
    перезапустить. Тестовый RDM `rdm_20261021_1409.vmdk` — удалить.
-4. **GSW-диск** — добавить второй vmdk в ESXi, разметить, перенести
-   `/var/lib/docker` (46G) или volumes Nextcloud/OnlyOffice.
-5. **SMART** — `/dev/da2` self-test failed (WDC16). Нужно
+3. **GSW-диск** — перенести данные Nextcloud на `/mnt/doc`
+   (zpool `doc_pool`), заменить volume на bind-mount, `occ files:scan`.
+   Удалить старый volume после проверки.
+4. **T-030.4** — наполнить `Sample/` эталонами (push с WSW и WS2,
+   сравнение, согласование). Начать с профилей root (push сделан,
+   аудит WS2 `diff=same` — перевести в `ready`).
+5. **T-030.5–.9** — pull/push написаны, но не тестированы; роли
+   (`server.list` → вкл/выкл служб), развёртывание нового сервера,
+   `Def/disks.list`, `rsInitRepository` — не начаты.
+6. **SMART** — `/dev/da2` self-test failed (WDC16). Нужно
    `smartctl -a /dev/da2`.
-6. **T-004** — `source_required` (отложено).
-7. **`39_funcDns.sh`** (`dnsSetup`) → `DirScriptsSampleNet` (отложено).
-8. **`server.list` под роли**, **скрипт вкл/выкл ролей**,
+7. **T-004** — `source_required` (отложено).
+8. **`39_funcDns.sh`** (`dnsSetup`) → `DirScriptsSampleNet` (отложено).
+9. **`server.list` под роли**, **скрипт вкл/выкл ролей**,
    **`Def/disks.list`**, **`rsInitRepository`** от `angelrs`.
-9. **Секреты в `ConfManual.sh`/`server.list`** — открытым текстом,
-   маскируются `sanitize` при repo-push. Отдельная тема — вынести
-   в `.env` или зашифровать.
-10. **`AI_FUNCTIONS.tsv`** — добавить в `config.json` (секция `files`),
-    чтобы читался при старте.
+10. **Секреты в `ConfManual.sh`/`server.list`** — открытым текстом,
+    маскируются `sanitize` при repo-push. Отдельная тема.
+11. **`AI_FUNCTIONS.tsv`** — добавить в `config.json` (секция `files`).
+12. **`zrInstallZrepl` (2.4.1)** — проверить на GSW (`2.4.1`).
+13. **`zpoolListFreeDisks` (5.2.12)** — проверено на WSW и GSW,
+    добавлено в `52_funcZpool.sh`.
 
 ## 🛠 КОМАНДЫ ai_context.ps1
 
@@ -771,6 +844,9 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
   `t10.ATA...` — имя RDM формировать из `t10.ATA...`.
 - **ESXi: `esxcli storage core device get`** — может отсутствовать,
   использовать `list -d <device>`.
+- **ESXi: ed25519 не поддерживается** — только RSA 4096.
+- **`zdb -l /dev/daX`** — проверка меток ZFS (rc=0 — есть, иначе — нет).
+- **`zfs release` / `zfs holds`** — только со снапшотом.
 
 ## 📁 КОДИРОВКА ФАЙЛОВ
 
@@ -799,11 +875,16 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
   серверы ещё не настроены). В `fstab` — `noauto`.
 - **zrepl sink:** `root_fs/${client_identity}/${source_path}`.
 - **zrepl-миграция:** завершена (см. историю 2026-10-23).
+- **`push_ws2_zroot`:** `no common snapshot` — нужно удалить
+  `ws2/zroot` и запустить полный send.
 - **`merge_project.ps1`** — по умолчанию режет на части
   ~250 КБ в `Win\MergeProjectOut\`.
 - **T-030:** эталон конфигов — `DirScriptsSampleNet`
   (`/mnt/scripts/Sample`), манифест — `Def/sync.<ostype>.list`.
 - **GSW:** `/opt/nextcloud-gsw/` (compose + nginx.conf), данные —
-  в external volume'ах.
+  в external volume'ах. Перенос на `/mnt/doc` — в работе.
 - **ESXi:** ключ `/root/.ssh/id_rsa_esxi` (RSA 4096) на WSW,
   host key на ESXi; `sshClient: true` для исходящих.
+- **`zpoolListFreeDisks` (5.2.12)** — все диски с состоянием,
+  проверено на WSW и GSW.
+- **`zrInstallZrepl` (2.4.1)** — FreeBSD + RedOS (RPM-репозиторий).
