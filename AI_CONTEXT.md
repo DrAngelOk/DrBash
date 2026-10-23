@@ -9,14 +9,15 @@
 URL: https://github.com/DrAngelOk/DrBash
 Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 Тип: публичный
-Дата последней загрузки: 2026-10-19
+Дата последней загрузки: 2026-10-23
 
-Файлы в репозитории (12 шт.):
+Файлы в репозитории (13 шт.):
 
 - AI_START.md — короткая точка входа (правила, процедура)
 - AI_MAP.md — карта проекта (структура, модули, статус разбора)
 - AI_CONTEXT.md — этот файл (детали проекта)
 - AI_TASKS.md — чек-лист задач
+- AI_FUNCTIONS.tsv — индекс функций (TSV: файл, номер, название, описание, статус, ключи)
 - _END_OF_SESSION_PROMPT.txt — промпт-триггер (описание формата пакета)
 - ai_context.ps1 — управляющий скрипт
 - merge_project_dump.txt — обезличенный дамп кода проекта
@@ -48,7 +49,7 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 Карта проекта — в AI_MAP.md.
 
 Статус проекта: **T-001 (первичный разбор кода) — ЗАКРЫТА (100%)**.
-**T-030 (развёртывание и синхронизация конфигов) — В РАБОТЕ (~40%)**.
+**T-030 (развёртывание и синхронизация конфигов) — В РАБОТЕ (~50%)**.
 
 **Разобраны / переработаны в этой и прошлых сессиях:**
 - startMain.sh, Conf/ (7 файлов), Func/Scripts (2 файла),
@@ -59,6 +60,8 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
   Func/11_Check (11.1.x–11.4.2).
 - Func/Watch/ — закрыт (T-018, поглощён модулем 11).
 - Func/12_Deploy/ — создан (T-030): 120 common, 121 audit, 122 pull, 123 push.
+- `81_funcEsxi.sh`: добавлены `esxiCopyScripts` (8.1.12), исправлена
+  `esxiDiskAttachPhysicalRDM` (8.1.3) — RDM через SSH.
 
 **Серверы (из Def/server.list):**
 - WSW (192.168.1.21, ens160, root, FreeBSD 15.1-RELEASE-p2) —
@@ -93,7 +96,7 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - `arc.min` может не применяться в рантайме (read-only).
 - `vfs.unmapped_buf_allowed="0"` — отключено на обоих
   (документированная проблема FreeBSD на виртуалках).
-- `vfs.zfs.min_auto_ashift="12"` — для будущих пулов.
+- `vfs.zfs.vdev.min_auto_ashift=12` — добавлено в `sysctl.conf` (для новых пулов).
 - `ashift=9` на `www2`/`zroot` (из-за 512e на vmdk) — пересоздание
   отложено.
 - ESXi показывает «Consumed ~100%» — норма для ZFS.
@@ -111,8 +114,10 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 **dma (mail):**
 - `dma` падает с `stack overflow` (FreeBSD Bug 281936) —
   mail loop без SMARTHOST.
-- Временно: periodic-отчёты отключены (`daily_output=""` и т.д.)
-  в `/etc/periodic.conf` на обоих серверах.
+- Временно: periodic-отчёты отключены (`daily_output="/dev/null"` и т.д.)
+  в `/etc/periodic.conf` на обоих серверах. **Важно:** пустая строка
+  `daily_output=""` НЕ отключает отчёты (означает «в stdout»), нужно
+  `/dev/null`.
 - TODO: настроить SMARTHOST.
 
 **Restic / rest-server / Backrest (WS2):**
@@ -123,6 +128,8 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - Клиенты: `back_wsw` (WSW), `back_noutd` (Windows).
 - Манифест: `Def/restic_clients.list`, парсер
   `Conf/ConfResticClients.sh`.
+- **На WSW** `restserver_enable="NO"`, `backrest_enable="NO"`
+  (они на WS2).
 
 **zrepl (работает):**
 - WSW `zroot` → WS2 (сетевая репликация).
@@ -132,23 +139,28 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
   `root_fs/${client_identity}/${source_path}`. Поэтому `root_fs`
   НЕ должен содержать `client_identity`, иначе получаются дубли
   (`wsw/wsw`, `ws2_local/.../ws2_local`).
-- **zrepl-миграция (15–16.10):** обнаружена сломанная структура
-  приёмника. Идёт миграция в правильную структуру:
+- **zrepl-миграция ЗАВЕРШЕНА (21.10):**
   - `ws2_local/zroot` → `ws2/zroot` — СДЕЛАНО
   - `ws2_local/www2` → `ws2/www2` — СДЕЛАНО
-  - `ws2_local/BS07_MY/ws2_local/BS07_MY` → `ws2/BS07_MY` — СДЕЛАНО
-    (2.03T)
-  - `wsw/wsw/zroot` → `wsw/zroot` — НЕ ЗАПУЩЕНО (перенесено)
-- **Диагноз:** корень `ws2_local/BS07_MY` имел `REFER 297G`
-  (артефакт прерванного `zfs receive`), реальных данных нет.
-  `@migrate` был только на глубоком датасете, на корне — нет.
-- **Правка конфига WS2 (после миграции):**
-  - `client_identity: ws2_local` → `ws2`
-  - `root_fs: BS07_MY/ZREPL` (без последнего сегмента)
-  - `sink_wsw`: `root_fs: BS07_MY/ZREPL` (без `/wsw`)
+  - `ws2_local/BS07_MY/.../BS07_MY` → `ws2/BS07_MY` (2.03T) — СДЕЛАНО
+  - `wsw/wsw/zroot` → `wsw/zroot` (252G) — СДЕЛАНО
+  - `ws2_local` — удалён (recursive)
+  - `wsw/wsw` — удалён (recursive), holds сняты (`zrepl_last_received_J_sink_wsw`,
+    `zrepl_wsw_*`), через `zfs release` по каждому снапшоту
+  - `root_fs` на WS2: `sink_wsw` → `BS07_MY/ZREPL` (без `/wsw`),
+    `local_sink_*` → `BS07_MY/ZREPL` (без `/ws2_local/...`)
+  - `client_identity: ws2_local` → `ws2` (в `push_ws2_*`)
+  - `zrepl configcheck` — OK, `service zrepl restart` — OK
 - **Конфиг WSW — не трогаем.** `client_identity: wsw` задаётся
   через `authorized_keys` на WS2:
   `command="zrepl stdinserver wsw",restrict ssh-ed25519 ...`
+- **`zrepl status --mode raw`** — неинтерактивный статус (JSON).
+  `zrepl status` (TUI) на FreeBSD может не работать без TTY/TERM.
+- **`zrepl zfs-abstraction release-all --fs <dataset>`** — не снимает
+  holds, если job удалён из конфига. Тогда — вручную:
+  `zfs list -H -t snapshot -r -o name <ds> | while read s; do
+   zfs holds -H "$s" 2>/dev/null; done` → `zfs release <tag> <snap>`.
+  **`zfs release`/`zfs holds` требуют снапшот, не датасет.**
 
 ## 🖥 ИНФРАСТРУКТУРА
 
@@ -160,6 +172,7 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - **CLICOLOR/GREP_OPTIONS** — убраны из профиля root (T-022).
 - **NFS `192.168.1.19:/nfs_01` не работает — норма**
   (сервер ещё не настроен). Аналогично `192.168.2.5:/nfs_d`.
+  В `/etc/fstab` добавлен `noauto` (чтобы `df -h` не зависал).
 
 **ZFS / ARC:**
 - WSW: `zroot`, `www2`. `www2/sql2` — БД MySQL (recordsize=16K,
@@ -177,6 +190,49 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - Картинки сайта 17 лежат в `uploads/sites/10/ASC_10/...`
   (нестандартная структура, петля `AH00124` при запросе
   несуществующих — отложено).
+
+**ESXi (11, 12, 13 — 192.168.1.28, .38, .48):**
+- **SSH между хостами:** для входящих — `sshServer: true`, для
+  исходящих — `sshClient: true` (на ESXi12/13 был `false` —
+  включили: `esxcli network firewall ruleset set --ruleset-id sshClient --enabled=true`).
+- **Ключи:** ed25519 ESXi НЕ поддерживает. Только RSA 4096.
+  - На WSW: `/root/.ssh/id_rsa_esxi` (RSA), публичная часть —
+    в `/etc/ssh/keys-root/authorized_keys` на ESXi.
+  - Между ESXi: host key (`/etc/ssh/ssh_host_rsa_key`), публичная
+    часть — в `authorized_keys` друг у друга.
+- **`known_hosts`:** ESXi не может нормально писать (`hostfile_replace_entries:
+  Function not implemented`). Симлинк `ln -s /etc/ssh/keys-root /.ssh`
+  помогает: первый раз ошибка, файл создаётся, второй раз — OK.
+  Радикальный обход — `-o UserKnownHostsFile=/dev/null`.
+- **`esxiCopyScripts` (8.1.12):** копирует `startMain.sh` + папки из
+  `scriptpaths.list` на ESXi через `sftp` (не `scp` — SCP на ESXi
+  ломается из-за «шумного» shell). Ключ — `/root/.ssh/id_rsa_esxi`.
+- **`esxiDiskAttachPhysicalRDM` (8.1.3):** RDM через SSH с WSW.
+  `esxcli storage core device list` — устройства `t10.`/`naa.`/`eui.`.
+  `esxcli storage core device get` — НЕТ в этой версии; использовать
+  `list -d <device>`. `Display Name` для локальных дисков бесполезен
+  (повторяет `t10.ATA...`); имя RDM — из `t10.ATA...`
+  (`WDC_WD5000LPSX_WD2DWXD2A6385AFE.vmdk`).
+- **`sshClient` на ESXi11 был true, на ESXi12/13 — false.**
+  Включили на 12/13.
+
+**GSW (192.168.1.25) — Nextcloud + OnlyOffice (Docker):**
+- **Рабочая директория:** `/opt/nextcloud-gsw/` (не `/ARC/_Docker/` —
+  удалена).
+  - `docker-compose.yml` — восстановлен из `docker inspect`
+    (через `docker-autocompose`), очищен, `nginx.conf` →
+    `/opt/nextcloud-gsw/nginx.conf`.
+  - `nginx.conf` — извлечён из работающего контейнера
+    (`docker exec nginx-server cat /etc/nginx/nginx.conf`).
+- **Контейнеры:** `app-server` (nextcloud:fpm), `nginx-server` (80/443),
+  `onlyoffice-document-server`.
+- **Volume'ы (external):** `docker-onlyoffice-nextcloud_app_data`,
+  `_document_data`, `_document_log`, `3b86ae...` (postgresql),
+  `04bbaaa...` (onlyoffice), `38e6669...` (rabbitmq), `14f5ce4...`
+  (redis), `92f5f8f...` (шрифты).
+- **`JWT_SECRET=secret`** — слабый, оставлен с `[FIX]`.
+- **Сеть:** `docker-onlyoffice-nextcloud_default` (external).
+- **Запуск:** `cd /opt/nextcloud-gsw && docker compose up -d`.
 
 ## 📜 ИСТОРИЯ СЕССИЙ
 
@@ -441,12 +497,9 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 
 **Баги кода (починены):**
 - `61_funcLogs.sh`: `logsShowMessages` (6.1.3) и `logsShowConsole` (6.1.4) —
-  сломанный heredoc (`\${1:-50}`, `\({target_log}`, `\){line_limit}`,
-  `pblu---` без `$`). Восстановлено, добавлен `timeout` на
-  `dmesg`/`tail`/`journalctl`, `mkdir -p` → `createDir` в
-  `logsSnapshotDmesgBoot`.
-- `funcCheck.sh`: вызов несуществующей `warn` → `logsMsg "WARN"`
-  (логгер `warn` удалён из `funcUtil.sh`).
+  сломанный heredoc. Восстановлено, добавлен `timeout`, `mkdir -p` → `createDir`
+  в `logsSnapshotDmesgBoot`.
+- `funcCheck.sh`: вызов несуществующей `warn` → `logsMsg "WARN"`.
 - `114_funcPostMortem.sh`: `logsMsg "ERR"` → `logsMsg "ERROR"` (2 места);
   добавлен `MenuRegister "11"` перед `"11.4"`.
 
@@ -459,8 +512,7 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
   4. Конфликты — эталон всегда побеждает (force pull), бэкап
      `.bak.YYYY-MM-DD_HHMM`; push — единственный способ изменить эталон.
   5. Область — `Def/sync.<ostype>.list` (строгий INI, секция
-     `[OSType:путь]`), эталон в `Sample/<OSType>/<rel>` (зеркало пути
-     без ведущего `/`).
+     `[OSType:путь]`), эталон в `Sample/<OSType>/<rel>`.
 - Статусы: `ready` / `manual` / `do-not-touch`. Пока `Sample/` пуст —
   ВСЕ пути `do-not-touch`.
 - Процедура перевода в `ready`/`manual`: сравнить WSW↔WS2 →
@@ -470,16 +522,14 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
   ${NC_MOUNT_POINT:-/mnt/scripts}/Sample`), виден всем серверам и Windows.
   `DirScriptsSample` (локальная) — «на потом».
 - Цепочка: push (сервер → `/mnt/scripts/Sample/`) → Nextcloud → Windows →
-  `sanitize_for_repo.ps1` → `git push` → GitHub → pull (GitHub/Nextcloud →
-  сервер).
+  `sanitize_for_repo.ps1` → `git push` → GitHub → pull.
 
 **Создано:**
 - `Def/sync.freebsd.list` — 39 путей, все `do-not-touch`, кроме
   `wp-config.php` (`do-not-touch` — патч, не зеркало). Исправлены пути
   по факту WSW: `/etc/sudoers` → `/usr/local/etc/sudoers`,
   `/usr/local/etc/zrepl.yml` → `/usr/local/etc/zrepl/zrepl.yml`,
-  `/var/db/mysql/my.cnf` удалён. Добавлены `boot`-пути:
-  `/boot/loader.conf`, `/boot/loader.conf.d/`, `/boot/device.hints`.
+  `/var/db/mysql/my.cnf` удалён. Добавлены `boot`-пути.
 - `Def/sync.redos.list` — 24 пути, все `do-not-touch`, кроме
   `/etc/default/grub` (`manual`) и `/boot/grub2/custom.cfg` (`manual`);
   `/boot/grub2/grub.cfg` — `do-not-touch` (генерируется).
@@ -512,28 +562,130 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
   `source ${ENV}`).
 - `.bashrc` — согласован.
 - `.bashrc.d/` — нужна как папка; содержимое: `.aliases.conf`,
-  `.colors.conf`, `.wp-completion.conf`.
+  `.colors.conf`, `.wp-completion.conf` (общие для всех).
+
+### Сессия 2026-10-23 — zrepl завершён, GSW, ESXi (SSH/RDM/копирование), конфиги, T-030
+
+**zrepl-миграция ЗАВЕРШЕНА:**
+- `wsw/wsw/zroot` → `wsw/zroot` (252G) — перенесён.
+- `@migrate` снят с `ws2/*` и `wsw/zroot`.
+- `ws2_local` — удалён (holds: `zrepl_last_received_J_sink_wsw` на всех
+  снапшотах; сняты через `zfs release` по каждому снапшоту циклом).
+- `wsw/wsw` — удалён (holds сняты тем же циклом).
+- `zrepl.yml` на WS2: `sink_wsw.root_fs: BS07_MY/ZREPL` (без `/wsw`),
+  `local_sink_*.root_fs: BS07_MY/ZREPL` (без `/ws2_local`),
+  `push_ws2_*.client_identity: ws2`. `configcheck` — OK, restart — OK.
+- `zrepl status --mode raw` — все jobs живы, snap-джобы отработали
+  на новой структуре, push-джобы в `Replication: null` (ручной
+  snapshotting — запустятся по сигналу).
+
+**GSW — Nextcloud + OnlyOffice (Docker):**
+- `/ARC/_Docker/` удалена (была рабочая директория compose).
+- Восстановлено в `/opt/nextcloud-gsw/`:
+  - `docker-compose.yml` — из `docker-autocompose` (3 контейнера),
+    очищен: убраны `hostname`/`mac_address`/`labels`/`environment`
+    из образов, `nginx.conf` → `/opt/nextcloud-gsw/nginx.conf`.
+  - `nginx.conf` — извлечён из работающего контейнера
+    (`docker exec nginx-server cat /etc/nginx/nginx.conf`).
+- Контейнеры пересозданы под новым Compose (`docker compose up -d`),
+  данные в external volume'ах сохранены. Снаружи работает.
+- `JWT_SECRET=secret` — оставлен с `[FIX]` (менять только синхронно
+  с плагином Nextcloud).
+
+**ESXi (11, 12, 13 — 192.168.1.28, .38, .48):**
+- SSH между хостами: `sshServer` везде true; `sshClient` на 12/13
+  был false → включили (`esxcli network firewall ruleset set
+  --ruleset-id sshClient --enabled=true`).
+- Ключи: ed25519 ESXi НЕ поддерживает → RSA 4096.
+  - WSW → ESXi: `/root/.ssh/id_rsa_esxi`, публичная часть —
+    в `/etc/ssh/keys-root/authorized_keys` на ESXi.
+  - ESXi ↔ ESXi: host key (`/etc/ssh/ssh_host_rsa_key`), публичные
+    части — друг у друга в `authorized_keys`.
+- `known_hosts`: ESXi не пишет (`hostfile_replace_entries: Function
+  not implemented`). Симлинк `ln -s /etc/ssh/keys-root /.ssh` —
+  первый раз ошибка, файл создаётся, второй — OK. Радикально —
+  `-o UserKnownHostsFile=/dev/null`.
+- `esxiCopyScripts` (8.1.12): копирует `startMain.sh` + папки из
+  `scriptpaths.list` на ESXi через `sftp` (SCP на ESXi ломается).
+  Ключ — `/root/.ssh/id_rsa_esxi`. Скопировано в
+  `/vmfs/volumes/DS11/Scripts`.
+- `esxiDiskAttachPhysicalRDM` (8.1.3): переписана — RDM через SSH
+  с WSW. `esxcli storage core device list` (устройства `t10.`/`naa.`/`eui.`),
+  `esxcli storage core device get` — НЕТ, использовать `list -d`.
+  `Display Name` для локальных дисков бесполезен → имя RDM из
+  `t10.ATA...` (`WDC_WD5000LPSX_WD2DWXD2A6385AFE.vmdk`). Создан
+  тестовый RDM `rdm_20261021_1409.vmdk` на DS12 (старое автоимя).
+  **Осталось:** вставить блок имени из `t10.ATA...` и перезапустить.
+
+**Конфиги (правки):**
+- `loader.conf` — комментарии (arc.max/min, unmapped_buf_allowed,
+  min_auto_ashift, fusefs_load, if_ovpn_load).
+- `sysctl.conf` — убрана слипшаяся строка, добавлены комментарии,
+  `vfs.zfs.vdev.min_auto_ashift=12` (для новых пулов).
+- `periodic.conf` — `daily_output="/dev/null"` (было `""` — не
+  отключало отчёты), `daily_ntpd_leapfile_enable="YES"`.
+- `rc.conf` — `zpool_reguid`/`zpool_upgrade` закомментированы
+  (firstboot), `restserver_enable="NO"`, `backrest_enable="NO"`,
+  `powerd_enable="NO"`, NTP включён (`ntpd_enable`,
+  `ntpd_sync_on_start`), комментарии к каждой строке.
+- `crontab` — `certbot renew` → `startMain.sh 1.6.3`, устаревшие ID
+  (`2 6`, `2 3`) закомментированы с пометкой, таблица задач
+  в комментариях.
+- `syslog.conf` — `local0` → `local1` для zrepl (`zrepl.yml` тоже
+  `facility: local1`), `*.emerg root` (было `*`), `debug.log`
+  закомментирован.
+- `fstab` — `noauto` на NFS (`/media/NFS01`, `/media/NFS_D`).
+- `motd.template` — создан (`\s`), `ready` в `sync.list`.
+- `hosts`, `resolv.conf` — `do-not-touch` (per-server).
+- `ntp.conf` — создан (пул FreeBSD, `restrict`, `driftfile`,
+  `leapfile /var/db/ntpd.leap-seconds.list`).
+
+**T-030 (продолжение):**
+- `sync.freebsd.list` — добавлены: `/etc/ipfw.rules` (`do-not-touch`),
+  `/etc/make.conf` (`do-not-touch`), `/etc/crontab` (`manual`),
+  `/etc/motd.template` (`ready`), `/etc/newsyslog.conf.d` (`ready`),
+  `/usr/local/etc/newsyslog.conf.d` (`ready`), `/etc/syslog.d` (`ready`),
+  `/usr/local/etc/syslog.d` (`ready`).
+- Push профилей root: `.profile`, `.bashrc`, `.bashrc.d` переведены
+  в `manual`, push `12.1.3 --yes` → `Sample/FreeBSD/root/...`.
+  Аудит WS2: `diff=same` (совпадает) — можно в `ready`, но сначала
+  сравнить с WS2 (сделано, совпадает).
+- `122_funcSyncPull.sh` / `123_funcSyncPush.sh` — аргументы
+  (`--yes`/`--force`, OSType) разбираются в любом порядке.
+- `121_funcSyncAudit.sh` — вывод выровнен через `printf` (plain+color),
+  разделение `_plain`/`_color`.
+
+**AI_FUNCTIONS.tsv — создан:**
+- Индекс функций (TSV: файл, номер, название, описание, статус, ключи).
+- 15 модулей: Conf/, Func/Scripts/, startMain, 01_Config, 02_Backup,
+  03_Servers, 04_FW, 05_Disks, 06_Logs, 07_Mon, 08_VM, 09_System,
+  10_Sites, 11_Check, 12_Deploy.
+- Статусы: `ГОТОВО` / `НЕ ПРОВЕРЕНО` / `T-030` / `ОТЛОЖЕНО`.
 
 ## ❓ ОТКРЫТЫЕ ВОПРОСЫ
 
-1. **zrepl-миграция** — завершить: `wsw` (252G), снять `@migrate`;
-   destroy `ws2_local`, `wsw/wsw`; правка конфига WS2; restart.
-2. **SMART** — `/dev/da2` self-test failed (WDC16). Нужно
+1. **T-030.4** — наполнить `Sample/` эталонами (push с WSW и WS2,
+   сравнение, согласование). Начать с профилей root (push сделан,
+   аудит WS2 `diff=same` — перевести в `ready`).
+2. **T-030.5–.9** — pull/push написаны, но не тестированы; роли
+   (`server.list` → вкл/выкл служб), развёртывание нового сервера,
+   `Def/disks.list`, `rsInitRepository` — не начаты.
+3. **`esxiDiskAttachPhysicalRDM` (8.1.3)** — вставить блок имени RDM
+   из `t10.ATA...` (`WDC_WD5000LPSX_WD2DWXD2A6385AFE.vmdk`) и
+   перезапустить. Тестовый RDM `rdm_20261021_1409.vmdk` — удалить.
+4. **GSW-диск** — добавить второй vmdk в ESXi, разметить, перенести
+   `/var/lib/docker` (46G) или volumes Nextcloud/OnlyOffice.
+5. **SMART** — `/dev/da2` self-test failed (WDC16). Нужно
    `smartctl -a /dev/da2`.
-3. **T-004** — `source_required` (отложено).
-4. **НОВАЯ** — `server.list` под роли.
-5. **НОВАЯ** — скрипт вкл/выкл ролей.
-6. **НОВАЯ** — `Def/disks.list`.
-7. **НОВАЯ** — `rsInitRepository` от `angelrs`.
-8. **T-030.3** — `sync.freebsd.list` / `sync.redos.list` созданы, но не
-   проверены в работе pull/push. Первый реальный цикл:
-   `.profile`/`.bashrc`/`.bashrc.d` → `manual` → push → `Sample/` →
-   проверить → `ready`.
-9. **T-030.4** — наполнить `Sample/` эталонами (push с WSW и WS2,
-   сравнение, согласование). Начать с профилей root.
-10. **T-030.5–.9** — pull/push написаны, но не тестированы; роли
-    (`server.list` → вкл/выкл служб), развёртывание нового сервера,
-    `Def/disks.list`, `rsInitRepository` — не начаты.
+6. **T-004** — `source_required` (отложено).
+7. **`39_funcDns.sh`** (`dnsSetup`) → `DirScriptsSampleNet` (отложено).
+8. **`server.list` под роли**, **скрипт вкл/выкл ролей**,
+   **`Def/disks.list`**, **`rsInitRepository`** от `angelrs`.
+9. **Секреты в `ConfManual.sh`/`server.list`** — открытым текстом,
+   маскируются `sanitize` при repo-push. Отдельная тема — вынести
+   в `.env` или зашифровать.
+10. **`AI_FUNCTIONS.tsv`** — добавить в `config.json` (секция `files`),
+    чтобы читался при старте.
 
 ## 🛠 КОМАНДЫ ai_context.ps1
 
@@ -555,6 +707,7 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 | AI_MAP.md | Карта проекта. |
 | AI_CONTEXT.md | Этот файл. |
 | AI_TASKS.md | Чек-лист. |
+| AI_FUNCTIONS.tsv | Индекс функций (TSV). |
 | _END_OF_SESSION_PROMPT.txt | Промпт-триггер. |
 | ai_context.ps1 | Управляющий скрипт. |
 | merge_project.ps1 | Сборщик дампа. |
@@ -593,8 +746,14 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - **`zrepl sink`: `root_fs` БЕЗ `client_identity`** — иначе дубли.
 - **`zfs send -R` требует снапшот на КОРНЕ дерева**, иначе
   промежуточные уровни приедут как placeholder'ы.
+- **`zfs release` / `zfs holds`** — только со снапшотом, не с датасетом.
+- **`zrepl zfs-abstraction release-all --fs`** — не снимает holds,
+  если job удалён из конфига.
 - **`StrictHostKeyChecking=no` запрещён** — только `accept-new`.
+  (Исключение: ESXi, где `known_hosts` не работает — `no` +
+  `UserKnownHostsFile=/dev/null`.)
 - **`sshpass -p` запрещён** — только `sshpass -e` (пароль в `SSHPASS`).
+  Для ESXi — ключ RSA 4096 (ed25519 не поддерживается).
 - **`visudo -cf` / `sshd -t` перед restart** — обязательно.
 - **Бэкап `.bak.YYYY-MM-DD_HHMM`** перед правкой `sudoers`/`sshd_config`/
   `fstab`/`loader.conf`/`wp-config.php`.
@@ -604,12 +763,21 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
   используется через `${...}`.
 - **Эталон конфигов — Nextcloud-моунт** (`DirScriptsSampleNet`), не
   локальная папка. `DirScriptsSample` — резервная, «на потом».
+- **`periodic.conf`: `*_output=""` НЕ отключает отчёты** (означает
+  «в stdout»). Для отключения — `/dev/null`.
+- **ESXi: `sshServer` — входящие, `sshClient` — исходящие.**
+  Для `scp`/`ssh` с хоста нужен `sshClient: true`.
+- **ESXi: `Display Name` для локальных дисков** может повторять
+  `t10.ATA...` — имя RDM формировать из `t10.ATA...`.
+- **ESXi: `esxcli storage core device get`** — может отсутствовать,
+  использовать `list -d <device>`.
 
 ## 📁 КОДИРОВКА ФАЙЛОВ
 
 - Bash: UTF-8 без BOM, LF.
 - PowerShell: ASCII в исполняемых строках.
 - JSON: UTF-8 с BOM.
+- TSV: UTF-8, табуляция (Excel открывает двойным кликом).
 
 ## 🧾 ЗАМЕТКИ
 
@@ -617,6 +785,7 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - **Кэш raw-URL:** `?v=<уникальное>`.
 - **Z: — WebDAV. Только `gh api`.**
 - **Карта проекта — в AI_MAP.md.**
+- **Индекс функций — в AI_FUNCTIONS.tsv.**
 - **Панель:** `bash /ARC/Scripts/startMain.sh`.
 - **createDir** — утилита в funcUtil.sh.
 - **MenuStart — единая точка входа.**
@@ -627,10 +796,14 @@ Raw-база: https://raw.githubusercontent.com/DrAngelOk/DrBash/main/
 - **MySQL-монитор:** пользователь `monitor`, пароль
   `MTr9kLp2Xw7qNv`.
 - **NFS не работает — норма** (`192.168.1.19`, `192.168.2.5` —
-  серверы ещё не настроены).
+  серверы ещё не настроены). В `fstab` — `noauto`.
 - **zrepl sink:** `root_fs/${client_identity}/${source_path}`.
-- **zrepl-миграция:** см. открытые вопросы п.1.
+- **zrepl-миграция:** завершена (см. историю 2026-10-23).
 - **`merge_project.ps1`** — по умолчанию режет на части
   ~250 КБ в `Win\MergeProjectOut\`.
 - **T-030:** эталон конфигов — `DirScriptsSampleNet`
   (`/mnt/scripts/Sample`), манифест — `Def/sync.<ostype>.list`.
+- **GSW:** `/opt/nextcloud-gsw/` (compose + nginx.conf), данные —
+  в external volume'ах.
+- **ESXi:** ключ `/root/.ssh/id_rsa_esxi` (RSA 4096) на WSW,
+  host key на ESXi; `sshClient: true` для исходящих.
