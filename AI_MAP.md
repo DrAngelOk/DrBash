@@ -130,7 +130,7 @@ restic_clients.list, **sync.freebsd.list** (T-030), **sync.redos.list** (T-030).
 
 | Файл | Статус |
 
-| 81_funcEsxi.sh | ГОТОВО |
+| 81_funcEsxi.sh | ГОТОВО (2026-10-23: `esxiCopyScripts` 8.1.12, `esxiDiskAttachPhysicalRDM` 8.1.3 через SSH) |
 | 82_funcVmTools.sh | ГОТОВО |
 
 > **[FIX] T-030:** в AI_MAP ранее значилось `Func/08_ESXi/`. Фактическая папка — `Func/08_VM/`. Исправлено.
@@ -155,9 +155,9 @@ restic_clients.list, **sync.freebsd.list** (T-030), **sync.redos.list** (T-030).
 
 | Файл | Функции | Статус |
 
-| 111_funcCheckDisk.sh | 11.1.1–11.1.8 (внутри — шапка `11_funcMonZfs.sh`) | ГОТОВО |
-| 112_funcCheckRAM.sh | 11.2.1–11.2.6 (внутри — шапка `11_funcMonMemory.sh`) | ГОТОВО |
-| 113_funcCheckBSD.sh | 11.3.1–11.3.8 (внутри — шапка `11_funcMonWebStack.sh`) | ГОТОВО |
+| 111_funcCheckDisk.sh | 11.1.1–11.1.8 | ГОТОВО |
+| 112_funcCheckRAM.sh | 11.2.1–11.2.6 | ГОТОВО |
+| 113_funcCheckBSD.sh | 11.3.1–11.3.8 | ГОТОВО |
 | 114_funcPostMortem.sh | 11.4.1, 11.4.2 | ГОТОВО (2026-10-19: `logsMsg "ERR"` → `"ERROR"`, `MenuRegister "11"`) |
 
 > **[FIX] T-030:** имена файлов в карте не совпадали с фактическими. Ранее значилось `11_funcMonZfs.sh`, `11_funcMonMemory.sh`, `11_funcMonWebStack.sh`. Фактические — `111_funcCheckDisk.sh`, `112_funcCheckRAM.sh`, `113_funcCheckBSD.sh`. Исправлено.
@@ -167,9 +167,9 @@ restic_clients.list, **sync.freebsd.list** (T-030), **sync.redos.list** (T-030).
 | Файл | ID | Статус |
 
 | 120_funcSyncCommon.sh | — (служебный) | ГОТОВО |
-| 121_funcSyncAudit.sh | 12.1.1 | ГОТОВО (аудит WSW: 39 путей, 28 есть) |
-| 122_funcSyncPull.sh | 12.1.2 | ГОТОВО (не тестирован) |
-| 123_funcSyncPush.sh | 12.1.3 | ГОТОВО (не тестирован) |
+| 121_funcSyncAudit.sh | 12.1.1 | ГОТОВО (аудит WSW: 39 путей, 28 есть; WS2 `diff=same`) |
+| 122_funcSyncPull.sh | 12.1.2 | НЕ ПРОВЕРЕНО (аргументы в любом порядке) |
+| 123_funcSyncPush.sh | 12.1.3 | ГОТОВО (push профилей root) |
 
 ### Func/Scripts/ — утилиты (2 файла)
 
@@ -194,6 +194,7 @@ restic_clients.list, **sync.freebsd.list** (T-030), **sync.redos.list** (T-030).
 - **HTTP-проверка:** `_webstack_http_check`.
 - **zrepl sink:** путь = `root_fs/${client_identity}/${source_path}`.
 - **T-030:** эталон конфигов — `DirScriptsSampleNet` (`/mnt/scripts/Sample`), манифест — `Def/sync.<ostype>.list`.
+- **ESXi:** управление по SSH (`/root/.ssh/id_rsa_esxi`), `sshClient: true` для исходящих.
 
 ## 📊 Статус разбора T-001
 
@@ -203,27 +204,31 @@ restic_clients.list, **sync.freebsd.list** (T-030), **sync.redos.list** (T-030).
 
 ## 📌 Актуально
 
-**T-030 (в работе, ~40%):**
+**T-030 (в работе, ~50%):**
 - Архитектура: 5 решений (источник — GitHub, роли — переключатели, pull+push, эталон побеждает, `sync.list` + `Sample/`).
 - Создан модуль `12_Deploy` (120 common, 121 audit, 122 pull, 123 push).
-- `Def/sync.freebsd.list` (39 путей), `Def/sync.redos.list` (24 пути).
-- Аудит WSW: 28 из 39 путей существуют, `Sample/` пуст.
-- Осталось: первый push профилей root, аудит WS2, согласование эталонов, тесты pull/push, роли, развёртывание нового сервера.
+- `Def/sync.freebsd.list` (46 путей), `Def/sync.redos.list` (24 пути).
+- Аудит WSW: 28 из 39 путей существуют. Push профилей root → `Sample/`. Аудит WS2: `diff=same`.
+- Осталось: перевести профили root в `ready`, тесты pull/push, роли, развёртывание нового сервера.
+
+**Закрыто в сессии 2026-10-23:**
+- zrepl-миграция завершена (`wsw/zroot`, `ws2/*`, holds, `zrepl.yml`).
+- GSW: `/opt/nextcloud-gsw/`, compose + nginx.conf, контейнеры пересозданы.
+- ESXi: `sshClient` на 12/13, ключи RSA, `esxiCopyScripts`, `esxiDiskAttachPhysicalRDM` (RDM через SSH).
+- Конфиги: `loader.conf`, `sysctl.conf`, `periodic.conf`, `rc.conf`, `crontab`, `syslog.conf`, `fstab`, `motd.template`, `ntp.conf`.
+- T-030: `sync.freebsd.list` (46), push профилей root, аудит WS2, аргументы pull/push, вывод аудита.
+- `AI_FUNCTIONS.tsv` — индекс функций (15 модулей).
 
 **Закрыто в сессии 2026-10-19:**
-- Проверка разбивки дампа (5 частей) — рабочая.
+- Проверка разбивки дампа (5 частей).
 - `merge_project.ps1` — 2 бага.
-- `61_funcLogs.sh`, `funcCheck.sh`, `114_funcPostMortem.sh` — баги.
+- `61_funcLogs.sh`, `funcCheck.sh`, `114_funcPostMortem.sh`.
 - T-030 архитектура + `sync.*.list` + модуль `12_Deploy` + `ConfPaths.sh`.
 
-**Закрыто в сессии 2026-10-18:**
-- T-001 (100%), T-018, T-003, T-021.
-- Сканеры, dma, картинки WordPress, WS2 SSH, T-015, T-017, T-005, T-020.
-- monPhpFpm, monReverseProxyHeaders/Fix.
-- `merge_project.ps1` — нарезка на части.
-
 **Осталось (кроме T-030):**
-- zrepl-миграция (`wsw`, `@migrate`, destroy, конфиг WS2).
+- ESXi / RDM — блок имени из `t10.ATA...`.
+- GSW-диск (второй vmdk).
 - SMART `/dev/da2`.
 - T-004 (`source_required`).
 - `server.list` под роли, скрипт вкл/выкл ролей, `Def/disks.list`, `rsInitRepository`.
+- T-033 (crontab), T-034 (dma SMARTHOST).
